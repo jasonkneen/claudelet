@@ -1,0 +1,71 @@
+{
+  "name": "claudelet",
+  "version": "1.0.0",
+  "description": "Claudelet - Interactive CLI chat with Claude Agent SDK, smart message queue, and file context",
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "bin": {
+    "claudelet": "./bin/claudelet-opentui.tsx"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "bin",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build:skills": "node ./scripts/buildSkills.js",
+    "dev": "bun run build:skills && bun run ./bin/claudelet-opentui.tsx",
+    "dev:classic": "bun run build:skills && bun run ./bin/claudelet.ts",
+    "dev:ink": "bun run build:skills && bun run ./bin/claudelet-tui.tsx",
+    "tui": "bun run build:skills && bun run ./bin/claudelet-opentui.tsx",
+    "tui:opentui": "bun run build:skills && bun run ./bin/claudelet-opentui.tsx",
+    "build": "bun build ./src/index.ts --outdir dist --target node --format esm",
+    "build:cli": "bun build ./bin/claudelet.ts --outfile dist/claudelet.js --target node",
+    "build:all": "bun run build && bun run build:cli",
+    "typecheck": "bun --eval 'import(\"./src/index.ts\")'",
+    "format": "prettier --write 'src/**/*.ts' 'bin/**/*.ts'",
+    "format:check": "prettier --check 'src/**/*.ts' 'bin/**/*.ts'",
+    "build:workspaces": "npm run build --workspaces --if-present",
+    "typecheck:workspaces": "npm run typecheck --workspaces --if-present"
+  },
+  "keywords": [
+    "claude",
+    "ai",
+    "agent",
+    "cli",
+    "chat",
+    "anthropic",
+    "message-queue",
+    "smart-queue"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "@ai-cluso/fast-apply": "workspace:*",
+    "@ai-cluso/lsp-client": "workspace:*",
+    "@ai-cluso/mgrep-local": "workspace:*",
+    "@opentui/core": "^0.1.60",
+    "@opentui/react": "^0.1.57",
+    "@types/react": "^19.2.7",
+    "ansi-colors": "^4.1.3",
+    "chokidar": "^5.0.0",
+    "claude-agent-loop": "workspace:*",
+    "highlight.js": "^11.11.1",
+    "ink": "^6.5.1",
+    "ink-text-input": "^6.0.0",
+    "marked": "^17.0.1",
+    "react": "^19.2.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "bun": ">=1.0.0"
+  }
+}

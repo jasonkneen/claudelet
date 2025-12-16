@@ -1,0 +1,42 @@
+{
+  "name": "@anthropic-ai/anthropic-oauth",
+  "version": "1.0.0",
+  "description": "Framework-agnostic OAuth 2.0 PKCE client for Anthropic Claude API authentication",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@openauthjs/openauth": "^0.4.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "keywords": [
+    "claude",
+    "anthropic",
+    "oauth",
+    "pkce",
+    "authentication",
+    "oauth2"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pheuter/claude-agent-desktop.git",
+    "directory": "packages/anthropic-oauth"
+  }
+}

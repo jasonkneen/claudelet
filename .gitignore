@@ -1,0 +1,8 @@
+/.claude
+/.claudelet
+/.opencode
+/bin/.opencode
+/dist
+/node_modules
+/out
+/packages/claude-agent-loop/dist

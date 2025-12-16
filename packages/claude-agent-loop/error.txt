@@ -1,0 +1,50 @@
+Last login: Tue Dec  2 19:05:25 on ttys011
+jkneen@OzBook-M3 claude-agent-loop % bun run build
+$ tsc
+src/agent-session.ts:52:8 - error TS2835: Relative import paths need explicit file extensions in ECMAScript imports when '--moduleResolution' is 'node16' or 'nodenext'. Did you mean './message-queue.js'?
+
+52 } from './message-queue';
+          ~~~~~~~~~~~~~~~~~
+
+src/agent-session.ts:58:8 - error TS2835: Relative import paths need explicit file extensions in ECMAScript imports when '--moduleResolution' is 'node16' or 'nodenext'. Did you mean './types.js'?
+
+58 } from './types';
+          ~~~~~~~~~
+
+src/agent-session.ts:242:25 - error TS7006: Parameter 'message' implicitly has an 'any' type.
+
+242     sendMessage: async (message) => {
+                            ~~~~~~~
+
+src/agent-session.ts:254:22 - error TS7006: Parameter 'preference' implicitly has an 'any' type.
+
+254     setModel: async (preference) => {
+                         ~~~~~~~~~~
+
+src/index.ts:59:8 - error TS2835: Relative import paths need explicit file extensions in ECMAScript imports when '--moduleResolution' is 'node16' or 'nodenext'. Did you mean './types.js'?
+
+59 } from './types';
+          ~~~~~~~~~
+
+src/index.ts:74:8 - error TS2835: Relative import paths need explicit file extensions in ECMAScript imports when '--moduleResolution' is 'node16' or 'nodenext'. Did you mean './message-queue.js'?
+
+74 } from './message-queue';
+          ~~~~~~~~~~~~~~~~~
+
+src/index.ts:83:8 - error TS2835: Relative import paths need explicit file extensions in ECMAScript imports when '--moduleResolution' is 'node16' or 'nodenext'. Did you mean './agent-session.js'?
+
+83 } from './agent-session';
+          ~~~~~~~~~~~~~~~~~
+
+src/message-queue.ts:41:39 - error TS2835: Relative import paths need explicit file extensions in ECMAScript imports when '--moduleResolution' is 'node16' or 'nodenext'. Did you mean './types.js'?
+
+41 import type { MessageQueueItem } from './types';
+                                         ~~~~~~~~~
+
+
+Found 8 errors in 3 files.
+
+Errors  Files
+     4  src/agent-session.ts:52
+     3  src/index.ts:59
+     1  src/message-queue.ts:41

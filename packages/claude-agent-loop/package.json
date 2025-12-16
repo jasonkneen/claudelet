@@ -1,0 +1,47 @@
+{
+  "name": "claude-agent-loop",
+  "version": "1.0.0",
+  "description": "Extracted agentic conversation loops for the Claude Agent SDK - message queue and streaming session management",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "chat": "bun run examples/basic-chat.ts",
+    "ink-chat": "bun run examples/ink-chat.tsx",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@anthropic-ai/anthropic-oauth": "workspace:*",
+    "@anthropic-ai/claude-agent-sdk": "^0.1.51",
+    "@types/react": "^19.2.7",
+    "ink": "^6.5.1",
+    "ink-text-input": "^6.0.0",
+    "react": "^19.2.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vitest": "^1.0.0"
+  },
+  "peerDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.1.0"
+  },
+  "keywords": [
+    "claude",
+    "anthropic",
+    "agent",
+    "sdk",
+    "agentic",
+    "loop"
+  ],
+  "license": "MIT"
+}
