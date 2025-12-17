@@ -5298,23 +5298,20 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
               const hasMarkdown = isMarkdown(msg.content);
               const modelDisplay = msg.model ? getModelDisplayFromPreference(msg.model) : null;
               return (
-                <box key={key} style={{ flexDirection: 'column', marginBottom: 1 }}>
+                <box key={key} style={{ flexDirection: 'row', marginBottom: 1 }}>
                   <box
                     border={true}
                     borderStyle="rounded"
                     borderColor={activeTheme.colors.border}
-                    style={{ paddingLeft: 1, paddingRight: 1, paddingTop: 0, paddingBottom: 0 }}
+                    style={{ paddingLeft: 1, paddingRight: 1, paddingTop: 0, paddingBottom: 0, flexGrow: 1 }}
                     bg="blackBright"
+                    label={modelDisplay ? ` ${modelDisplay} ` : undefined}
+                    labelPosition="left"
                   >
                     {hasMarkdown ?
                       renderMarkdown(msg.content)
                     : <text content={msg.content} fg={activeTheme.colors.assistantMessage} />}
                   </box>
-                  {modelDisplay && (
-                    <box style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
-                      <text content={`[${modelDisplay}]`} fg={activeTheme.colors.muted} />
-                    </box>
-                  )}
                 </box>
               );
             }
@@ -5926,15 +5923,15 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
             }))}
           />
         )}
-        <text content=" | " fg={activeTheme.colors.separator} />
+        <text content=" |" fg={activeTheme.colors.separator} />
         {/* Mode selector */}
-        <text content="Mode: " fg={activeTheme.colors.muted} />
+        <text content="" fg={activeTheme.colors.muted} />
         <text
           content={
-            state.thinkingSessions.some(s => !s.endTime) ? 'Thinking' :
+            state.thinkingSessions.some(s => !s.endTime) ? ' THINKING ' :
             state.currentTool ? 'Tool Use' :
-            state.isResponding ? 'Responding' :
-            state.agentMode === 'coding' ? 'Coding' : 'Planning'
+            state.isResponding ? 'RESPONDING' :
+            state.agentMode === 'coding' ? '   CODE   ' : '   PLAN   '  
           }
           fg={
             state.activeStatusPopup === 'mode' ? activeTheme.colors.highlight :
