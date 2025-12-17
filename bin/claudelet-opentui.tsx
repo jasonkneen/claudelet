@@ -431,12 +431,12 @@ const DEFAULT_THEMES: Theme[] = [
       highlight: '#8FBCBB',
       toolChip: '#434C5E',
       toolChipActive: '#88C0D0',
-      thinkingChip: '#D08770',
+      thinkingChip: '#81A1C1',
       kittColor: '#88C0D0',
       kittBracket: '#81A1C1',
-      kittLit: '█',
-      kittDim: '▓',
-      kittFaint: '░',
+      kittLit: '▰',
+      kittDim: '▱',
+      kittFaint: '▱',
       kittOff: '·',
       success: '#A3BE8C',
       warning: '#D08770',
@@ -3005,6 +3005,7 @@ const ChatApp: React.FC<{
   // KITT animation state (Knight Rider style moving light)
   const [kittPosition, setKittPosition] = useState(0);
   const [kittDirection, setKittDirection] = useState<'right' | 'left'>('right');
+  const [kittPauseFrames, setKittPauseFrames] = useState(0); // Pause at edges
   const kittWidth = 8; // Width of the KITT animation bar
   // Preview theme for live preview while scrolling through themes
   const [previewTheme, setPreviewTheme] = useState<Theme | null>(null);
@@ -3036,27 +3037,39 @@ const ChatApp: React.FC<{
     state.thinkingSessions.some(s => !s.endTime) ||
     !!state.currentTool;
 
+  // Extended range for off-screen fade effect (pulse goes beyond visible area)
+  const kittExtended = kittWidth + 6; // Extra positions for trail fade-out
+
   useEffect(() => {
     if (!isActivityHappening) {
       // Reset position when no activity
       setKittPosition(0);
       setKittDirection('right');
+      setKittPauseFrames(0);
       return;
     }
 
-    // Animate the KITT position
+    // Animate the KITT position (extended range for off-screen effect)
     const interval = setInterval(() => {
+      // Handle pause at edges
+      if (kittPauseFrames > 0) {
+        setKittPauseFrames(prev => prev - 1);
+        return;
+      }
+
       setKittPosition(prev => {
         if (kittDirection === 'right') {
-          if (prev >= kittWidth - 1) {
+          if (prev >= kittExtended) {
             setKittDirection('left');
-            return prev - 1;
+            setKittPauseFrames(4); // Pause for 4 frames at right edge
+            return prev;
           }
           return prev + 1;
         } else {
-          if (prev <= 0) {
+          if (prev <= -6) { // Go off the left edge too
             setKittDirection('right');
-            return prev + 1;
+            setKittPauseFrames(4); // Pause for 4 frames at left edge
+            return prev;
           }
           return prev - 1;
         }
@@ -3064,7 +3077,7 @@ const ChatApp: React.FC<{
     }, 80); // 80ms interval for smooth animation
 
     return () => clearInterval(interval);
-  }, [isActivityHappening, kittDirection, kittWidth]);
+  }, [isActivityHappening, kittDirection, kittExtended, kittPauseFrames]);
 
   // Initialize AI Tools Service and listeners (non-blocking background init)
   // Set SKIP_AI_TOOLS=1 to bypass AI Tools for input delay debugging
@@ -4961,8 +4974,9 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
 
     // Right arrow - move cursor right
     if (key.name === 'right' && !key.ctrl && !key.meta) {
-      const lastSegment = inputSegments[inputSegments.length - 1];
-      const maxPos = lastSegment?.type === 'text' ? lastSegment.text.length : 0;
+      const textSegments = inputSegments.filter((s) => s.type === 'text');
+      const lastTextSegment = textSegments[textSegments.length - 1];
+      const maxPos = lastTextSegment ? lastTextSegment.text.length : 0;
       setCursorPosition((prev) => Math.min(maxPos, prev + 1));
       return;
     }
@@ -4975,8 +4989,9 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
 
     // End - move cursor to end
     if (key.name === 'end') {
-      const lastSegment = inputSegments[inputSegments.length - 1];
-      const maxPos = lastSegment?.type === 'text' ? lastSegment.text.length : 0;
+      const textSegments = inputSegments.filter((s) => s.type === 'text');
+      const lastTextSegment = textSegments[textSegments.length - 1];
+      const maxPos = lastTextSegment ? lastTextSegment.text.length : 0;
       setCursorPosition(maxPos);
       return;
     }
@@ -5280,7 +5295,9 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                     : <text content={msg.content} fg={activeTheme.colors.assistantMessage} />}
                   </box>
                   {modelDisplay && (
-                    <text content={` [${modelDisplay}]`} fg={activeTheme.colors.muted} />
+                    <box style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+                      <text content={`[${modelDisplay}]`} fg={activeTheme.colors.muted} />
+                    </box>
                   )}
                 </box>
               );
@@ -5845,15 +5862,39 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
           >
             <text content="[" fg={activeTheme.colors.kittBracket} />
             {Array.from({ length: kittWidth }).map((_, i) => {
-              const distance = Math.abs(i - kittPosition);
-              const isLit = distance === 0;
-              const isDim = distance === 1;
-              const isFaint = distance === 2;
+              // Calculate distance behind the leading position (directional trail)
+              const behindDistance = kittDirection === 'right'
+                ? kittPosition - i  // Trail is to the left when moving right
+                : i - kittPosition; // Trail is to the right when moving left
+
+              const isLit = i === kittPosition;
+              const isInTrail = behindDistance > 0 && behindDistance <= kittWidth;
+
+              // Character: lit=▰, trail=▱, off=·
+              const char = isLit ? activeTheme.colors.kittLit : isInTrail ? activeTheme.colors.kittDim : activeTheme.colors.kittOff;
+
+              // Fade trail color based on distance (1.0 at front, fading to 0.2)
+              const fadeAmount = isLit ? 1.0 : isInTrail ? Math.max(0.2, 1.0 - (behindDistance * 0.12)) : 0;
+
+              // Dim the hex color by mixing with black
+              const dimColor = (hex: string, intensity: number): string => {
+                const r = parseInt(hex.slice(1, 3), 16);
+                const g = parseInt(hex.slice(3, 5), 16);
+                const b = parseInt(hex.slice(5, 7), 16);
+                const nr = Math.round(r * intensity);
+                const ng = Math.round(g * intensity);
+                const nb = Math.round(b * intensity);
+                return `#${nr.toString(16).padStart(2, '0')}${ng.toString(16).padStart(2, '0')}${nb.toString(16).padStart(2, '0')}`;
+              };
+
+              const color = isLit || isInTrail ? dimColor(activeTheme.colors.kittColor, fadeAmount) : 'gray';
+
               return (
                 <text
                   key={`kitt-${i}`}
-                  content={isLit ? activeTheme.colors.kittLit : isDim ? activeTheme.colors.kittDim : isFaint ? activeTheme.colors.kittFaint : activeTheme.colors.kittOff}
-                  fg={isLit ? activeTheme.colors.kittColor : isDim ? activeTheme.colors.kittColor : isFaint ? activeTheme.colors.kittColor : 'gray'}
+                  content={char}
+                  fg={color}
+                  dimmed={!isLit && !isInTrail}
                 />
               );
             })}
@@ -5870,26 +5911,21 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
           />
         )}
         <text content=" | " fg={activeTheme.colors.separator} />
-        {/* Model selector - clickable */}
-        <text
-          content={state.currentModel === 'auto' ? 'Auto' : getModelDisplayFromPreference(state.currentModel)}
-          fg={state.activeStatusPopup === 'model' ? activeTheme.colors.highlight : activeTheme.colors.muted}
-          bold={state.activeStatusPopup === 'model'}
-          onMouseUp={() => {
-            updateState((prev) => ({
-              activeStatusPopup: prev.activeStatusPopup === 'model' ? null : 'model',
-              selectedPopupIndex: models.findIndex(m => m.id === state.currentModel)
-            }));
-          }}
-        />
-        <text content=" | " fg={activeTheme.colors.separator} />
-        {/* Mode selector - clickable */}
+        {/* Mode selector - responsive (full labels when wide, compact when narrow) */}
+        {terminalSize.columns >= 100 && <text content="Mode: " fg={activeTheme.colors.muted} />}
         <text
           content={
-            state.thinkingSessions.some(s => !s.endTime) ? 'THINKING' :
-            state.currentTool ? 'TOOL' :
-            state.isResponding ? 'RESPONDING' :
-            state.agentMode.toUpperCase()
+            terminalSize.columns >= 100 ? (
+              state.thinkingSessions.some(s => !s.endTime) ? 'Thinking' :
+              state.currentTool ? 'Tool Use' :
+              state.isResponding ? 'Responding' :
+              state.agentMode === 'coding' ? 'Coding' : 'Planning'
+            ) : (
+              state.thinkingSessions.some(s => !s.endTime) ? 'THINK' :
+              state.currentTool ? 'TOOL' :
+              state.isResponding ? 'RESP' :
+              state.agentMode === 'coding' ? 'CODE' : 'PLAN'
+            )
           }
           fg={
             state.activeStatusPopup === 'mode' ? activeTheme.colors.highlight :
@@ -5907,9 +5943,20 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
           }}
         />
         <text content=" | " fg={activeTheme.colors.separator} />
+        {/* Agents - responsive */}
+        {terminalSize.columns >= 100 && <text content="Agents: " fg={activeTheme.colors.muted} />}
         <text
-          content={`${state.subAgentsSectionExpanded ? '[-]' : '[+]'} Agents:${state.subAgents.length}`}
-          fg={activeTheme.colors.accent}
+          content={terminalSize.columns >= 100 ? (state.subAgentsSectionExpanded ? '[-]' : '[+]') : `${state.subAgentsSectionExpanded ? '[-]' : '[+]'}`}
+          fg={activeTheme.colors.muted}
+          onMouseUp={() => {
+            updateState((prev) => ({
+              subAgentsSectionExpanded: !prev.subAgentsSectionExpanded
+            }));
+          }}
+        />
+        <text
+          content={`${state.subAgents.length}`}
+          fg={activeTheme.colors.secondary}
           bold
           onMouseUp={() => {
             updateState((prev) => ({
@@ -5919,10 +5966,11 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
         />
         {state.queuedMessages > 0 && <text content=" | " fg={activeTheme.colors.separator} />}
         {state.queuedMessages > 0 && (
-          <text content={`Q:${state.queuedMessages}`} fg={activeTheme.colors.info} bold />
+          <text content={`Q${state.queuedMessages}`} fg={activeTheme.colors.info} bold />
         )}
         <text content=" | " fg={activeTheme.colors.separator} />
-        {/* Context - clickable */}
+        {/* Context - responsive */}
+        {terminalSize.columns >= 100 && <text content="Context: " fg={activeTheme.colors.muted} />}
         {(() => {
           const MAX_CONTEXT = 200000;
           const total = state.inputTokens + state.outputTokens;
@@ -5941,9 +5989,10 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
           );
         })()}
         <text content=" (" fg={activeTheme.colors.muted} />
-        <text content={`↑${state.inputTokens.toLocaleString()}`} fg={activeTheme.colors.secondary} />
-        <text content=" " fg={activeTheme.colors.muted} />
-        <text content={`↓${state.outputTokens.toLocaleString()}`} fg={activeTheme.colors.secondary} />
+        <text content="↑" fg={activeTheme.colors.muted} />
+        <text content={state.inputTokens.toLocaleString()} fg={activeTheme.colors.secondary} />
+        <text content=" ↓" fg={activeTheme.colors.muted} />
+        <text content={state.outputTokens.toLocaleString()} fg={activeTheme.colors.secondary} />
         <text content=")" fg={activeTheme.colors.muted} />
         {historyIndex !== -1 && (
           <>
@@ -5954,6 +6003,8 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
         {aiStats && (
           <box style={{ flexDirection: 'row' }}>
             <text content=" | " fg={activeTheme.colors.separator} />
+            {/* LSP - responsive */}
+            {terminalSize.columns >= 100 && <text content="LSP: " fg={activeTheme.colors.muted} />}
             <text
               content="●"
               fg={
@@ -5963,10 +6014,6 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                 aiStats.watcher === 'watching' ? activeTheme.colors.info :
                 aiStats.watcher === 'error' ? activeTheme.colors.error : activeTheme.colors.muted
               }
-            />
-            <text
-              content=" LSP:"
-              fg={state.activeStatusPopup === 'lsp' ? activeTheme.colors.highlight : activeTheme.colors.muted}
               onMouseUp={() => {
                 updateState((prev) => ({
                   activeStatusPopup: prev.activeStatusPopup === 'lsp' ? null : 'lsp'
@@ -5983,22 +6030,21 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
               }}
             />
             <text content=" | " fg={activeTheme.colors.separator} />
-            <text
-              content="IDX:"
-              fg={state.activeStatusPopup === 'idx' ? activeTheme.colors.highlight : activeTheme.colors.muted}
-              onMouseUp={() => {
-                updateState((prev) => ({
-                  activeStatusPopup: prev.activeStatusPopup === 'idx' ? null : 'idx'
-                }));
-              }}
-            />
+            {/* IDX - responsive */}
+            {terminalSize.columns >= 100 && <text content="Index: " fg={activeTheme.colors.muted} />}
             <text
               content={
-                aiStats.indexer.isIndexing ?
-                  `${Math.round((aiStats.indexer.current / aiStats.indexer.total) * 100)}%`
-                : 'ready'
+                terminalSize.columns >= 100 ? (
+                  aiStats.indexer.isIndexing ?
+                    `${Math.round((aiStats.indexer.current / aiStats.indexer.total) * 100)}%`
+                  : 'Ready'
+                ) : (
+                  aiStats.indexer.isIndexing ?
+                    `IDX${Math.round((aiStats.indexer.current / aiStats.indexer.total) * 100)}%`
+                  : '✓'
+                )
               }
-              fg={state.activeStatusPopup === 'idx' ? activeTheme.colors.highlight : activeTheme.colors.secondary}
+              fg={state.activeStatusPopup === 'idx' ? activeTheme.colors.highlight : aiStats.indexer.isIndexing ? activeTheme.colors.warning : activeTheme.colors.success}
               onMouseUp={() => {
                 updateState((prev) => ({
                   activeStatusPopup: prev.activeStatusPopup === 'idx' ? null : 'idx'
@@ -6006,6 +6052,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
               }}
             />
             <text content=" | " fg={activeTheme.colors.separator} />
+            {/* Patch model */}
             <text
               content={aiStats.patchModel}
               fg={state.activeStatusPopup === 'patchModel' ? activeTheme.colors.highlight : activeTheme.colors.muted}
@@ -6017,6 +6064,24 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
             />
           </box>
         )}
+        {/* Model selector - far right, responsive */}
+        <box style={{ flexGrow: 1 }} />
+        {terminalSize.columns >= 100 && <text content="Model: " fg={activeTheme.colors.muted} />}
+        <text
+          content={
+            terminalSize.columns >= 100 ?
+              getModelDisplayFromPreference(state.currentModel) :
+              (state.currentModel === 'auto' ? 'A' : getModelDisplayFromPreference(state.currentModel).charAt(0))
+          }
+          fg={state.activeStatusPopup === 'model' ? activeTheme.colors.highlight : activeTheme.colors.primary}
+          bold
+          onMouseUp={() => {
+            updateState((prev) => ({
+              activeStatusPopup: prev.activeStatusPopup === 'model' ? null : 'model',
+              selectedPopupIndex: models.findIndex(m => m.id === state.currentModel)
+            }));
+          }}
+        />
       </box>
 
       {/* Status Dialog Overlay (Ctrl+S to toggle) */}
@@ -6083,39 +6148,44 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
             left: 5,
             top: 3,
             width: 50,
-            height: 10,
+            height: models.length + 4,
             flexDirection: 'column',
             zIndex: 1000,
             backgroundColor: 'black'
           }}
           border={true}
           borderStyle="rounded"
-          borderColor="gray"
-          title=" Select Model "
+          borderColor={activeTheme.colors.border}
         >
+          {/* Header row with title and close button */}
+          <box style={{ flexDirection: 'row', justifyContent: 'space-between', paddingLeft: 1, paddingRight: 1, marginBottom: 1 }}>
+            <text content="Select Model" fg={activeTheme.colors.muted} bold />
+            <text
+              content="×"
+              fg={activeTheme.colors.muted}
+              onMouseUp={() => setShowModelDialog(false)}
+            />
+          </box>
           {models.map((model, idx) => (
             <box
               key={model.id}
               style={{
-                paddingLeft: selectedModelIndex === idx ? 1 : 2,
+                paddingLeft: 1,
                 paddingRight: 1
               }}
             >
               <text
                 content={selectedModelIndex === idx ? '▶ ' : '  '}
-                fg={selectedModelIndex === idx ? 'white' : 'gray'}
+                fg={selectedModelIndex === idx ? activeTheme.colors.secondary : activeTheme.colors.muted}
               />
               <text
                 content={model.name}
-                fg={selectedModelIndex === idx ? 'white' : 'gray'}
+                fg={selectedModelIndex === idx ? activeTheme.colors.assistantMessage : activeTheme.colors.muted}
                 bold={selectedModelIndex === idx}
               />
-              <text content={state.currentModel === model.display ? ' [active]' : ''} fg="gray" />
+              <text content={state.currentModel === model.display ? ' ●' : ''} fg={activeTheme.colors.primary} />
             </box>
           ))}
-          <box style={{ marginTop: 1 }}>
-            <text content="↑↓: Select | Enter/Space: Switch | Esc: Close" fg="gray" italic />
-          </box>
         </box>
       )}
 
@@ -6127,21 +6197,29 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
             left: 5,
             top: 14,
             width: 50,
-            height: 10,
+            height: providers.length * 2 + 4,
             flexDirection: 'column',
             zIndex: 1000,
             backgroundColor: 'black'
           }}
           border={true}
           borderStyle="rounded"
-          borderColor="gray"
-          title=" Select Provider "
+          borderColor={activeTheme.colors.border}
         >
+          {/* Header row with title and close button */}
+          <box style={{ flexDirection: 'row', justifyContent: 'space-between', paddingLeft: 1, paddingRight: 1, marginBottom: 1 }}>
+            <text content="Select Provider" fg={activeTheme.colors.muted} bold />
+            <text
+              content="×"
+              fg={activeTheme.colors.muted}
+              onMouseUp={() => setShowProviderDialog(false)}
+            />
+          </box>
           {providers.map((provider, idx) => (
             <box
               key={provider.id}
               style={{
-                paddingLeft: selectedProviderIndex === idx ? 1 : 2,
+                paddingLeft: 1,
                 paddingRight: 1,
                 flexDirection: 'column'
               }}
@@ -6149,29 +6227,36 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
               <box>
                 <text
                   content={selectedProviderIndex === idx ? '▶ ' : '  '}
-                  fg={selectedProviderIndex === idx ? 'white' : 'gray'}
+                  fg={selectedProviderIndex === idx ? activeTheme.colors.secondary : activeTheme.colors.muted}
                 />
                 <text
                   content={provider.name}
-                  fg={selectedProviderIndex === idx ? 'white' : 'gray'}
+                  fg={selectedProviderIndex === idx ? activeTheme.colors.assistantMessage : activeTheme.colors.muted}
                   bold={selectedProviderIndex === idx}
                 />
               </box>
-              <text content={`  ${provider.description}`} fg="gray" />
+              <text content={`  ${provider.description}`} fg={activeTheme.colors.muted} />
             </box>
           ))}
-          <box style={{ marginTop: 1 }}>
-            <text content="↑↓: Select | Enter/Space: Switch | Esc: Close" fg="gray" italic />
-          </box>
         </box>
       )}
 
-      {/* Theme Picker Dialog - centered */}
+      {/* Theme Picker Dialog - centered and responsive */}
       {state.showThemePicker && (() => {
         const dialogWidth = 50;
-        const dialogHeight = DEFAULT_THEMES.length + 4;
-        const centerLeft = Math.max(0, Math.floor((terminalSize.cols - dialogWidth) / 2));
+        // Calculate max visible themes based on terminal height (leave room for border, header, scroll indicators)
+        const maxVisibleThemes = Math.min(DEFAULT_THEMES.length, Math.max(5, terminalSize.rows - 10));
+        const dialogHeight = maxVisibleThemes + 4;
+        const centerLeft = Math.max(0, Math.floor((terminalSize.columns - dialogWidth) / 2));
         const centerTop = Math.max(0, Math.floor((terminalSize.rows - dialogHeight) / 2));
+
+        // Calculate scroll window
+        const selectedIdx = state.selectedThemeIndex;
+        const scrollStart = Math.max(0, Math.min(selectedIdx - Math.floor(maxVisibleThemes / 2), DEFAULT_THEMES.length - maxVisibleThemes));
+        const visibleThemes = DEFAULT_THEMES.slice(scrollStart, scrollStart + maxVisibleThemes);
+        const hasScrollUp = scrollStart > 0;
+        const hasScrollDown = scrollStart + maxVisibleThemes < DEFAULT_THEMES.length;
+
         return (
           <box
             style={{
@@ -6186,12 +6271,29 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
             }}
             border={true}
             borderStyle="rounded"
-            borderColor={activeTheme.colors.highlight}
-            title=" Themes "
+            borderColor={activeTheme.colors.border}
           >
-            {/* Theme list */}
-            {DEFAULT_THEMES.map((theme, idx) => {
-              const isSelected = state.selectedThemeIndex === idx;
+            {/* Header row with title, scroll indicator, and close button */}
+            <box style={{ flexDirection: 'row', justifyContent: 'space-between', paddingLeft: 1, paddingRight: 1, marginBottom: 1 }}>
+              <text content="Themes" fg={activeTheme.colors.muted} bold />
+              <box style={{ flexDirection: 'row' }}>
+                {hasScrollUp && <text content="↑" fg={activeTheme.colors.secondary} />}
+                {hasScrollDown && <text content="↓" fg={activeTheme.colors.secondary} />}
+                <text content=" " />
+                <text
+                  content="×"
+                  fg={activeTheme.colors.muted}
+                  onMouseUp={() => {
+                    updateState({ showThemePicker: false });
+                    setPreviewTheme(null);
+                  }}
+                />
+              </box>
+            </box>
+            {/* Theme list - scrollable window */}
+            {visibleThemes.map((theme) => {
+              const actualIdx = DEFAULT_THEMES.indexOf(theme);
+              const isSelected = state.selectedThemeIndex === actualIdx;
               const isCurrent = state.currentTheme.name === theme.name;
               return (
                 <box
@@ -6205,37 +6307,33 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                     saveThemeName(theme.name); // Persist theme choice
                     updateState({
                       currentTheme: theme,
-                      selectedThemeIndex: idx,
+                      selectedThemeIndex: actualIdx,
                       showThemePicker: false
                     });
                     setPreviewTheme(null);
                   }}
                   onMouseEnter={() => {
                     setPreviewTheme(theme);
-                    updateState({ selectedThemeIndex: idx });
+                    updateState({ selectedThemeIndex: actualIdx });
                   }}
                 >
                   <text
                     content={isSelected ? '▸ ' : '  '}
-                    fg={isSelected ? theme.colors.primary : 'gray'}
+                    fg={isSelected ? theme.colors.primary : activeTheme.colors.muted}
                   />
                   <text
                     content={theme.name.padEnd(14)}
-                    fg={isSelected ? theme.colors.primary : 'gray'}
+                    fg={isSelected ? theme.colors.primary : activeTheme.colors.muted}
                     bold={isSelected}
                   />
                   <text
                     content={theme.description.substring(0, 18).padEnd(18)}
-                    fg={isSelected ? 'white' : 'gray'}
+                    fg={isSelected ? activeTheme.colors.assistantMessage : activeTheme.colors.muted}
                   />
                   <text content={isCurrent ? ' ✓' : ''} fg={theme.colors.accent} />
                 </box>
               );
             })}
-            {/* Instructions */}
-            <box style={{ marginTop: 1, paddingLeft: 1 }}>
-              <text content="↑↓ Preview  Enter Apply  Esc Cancel" fg="gray" />
-            </box>
           </box>
         );
       })()}
@@ -6247,7 +6345,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
         <box
           style={{
             position: 'absolute',
-            left: 14,
+            right: 2,
             bottom: 2,
             width: 35,
             height: models.length + 4,
@@ -6257,9 +6355,17 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
           }}
           border={true}
           borderStyle="rounded"
-          borderColor="yellow"
-          title=" Model "
+          borderColor={activeTheme.colors.border}
         >
+          {/* Header row with title and close button */}
+          <box style={{ flexDirection: 'row', justifyContent: 'space-between', paddingLeft: 1, paddingRight: 1, marginBottom: 1 }}>
+            <text content="Model" fg={activeTheme.colors.muted} bold />
+            <text
+              content="×"
+              fg={activeTheme.colors.muted}
+              onMouseUp={() => updateState({ activeStatusPopup: null })}
+            />
+          </box>
           {models.map((model, idx) => {
             const isSelected = state.selectedPopupIndex === idx;
             const isCurrent = state.currentModel === model.id;
@@ -6274,15 +6380,12 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                   });
                 }}
               >
-                <text content={isSelected ? '▶ ' : '  '} fg={isSelected ? 'yellow' : 'gray'} />
-                <text content={model.name} fg={isSelected ? 'white' : 'gray'} bold={isSelected} />
-                <text content={isCurrent ? ' ●' : ''} fg="yellow" />
+                <text content={isSelected ? '▶ ' : '  '} fg={isSelected ? activeTheme.colors.secondary : activeTheme.colors.muted} />
+                <text content={model.name} fg={isSelected ? activeTheme.colors.assistantMessage : activeTheme.colors.muted} bold={isSelected} />
+                <text content={isCurrent ? ' ●' : ''} fg={activeTheme.colors.primary} />
               </box>
             );
           })}
-          <box style={{ marginTop: 1, paddingLeft: 1 }}>
-            <text content="Click to select | Esc: Close" fg="gray" italic />
-          </box>
         </box>
       )}
 
@@ -6301,9 +6404,17 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
           }}
           border={true}
           borderStyle="rounded"
-          borderColor="yellow"
-          title=" Mode "
+          borderColor={activeTheme.colors.border}
         >
+          {/* Header row with title and close button */}
+          <box style={{ flexDirection: 'row', justifyContent: 'space-between', paddingLeft: 1, paddingRight: 1, marginBottom: 1 }}>
+            <text content="Mode" fg={activeTheme.colors.muted} bold />
+            <text
+              content="×"
+              fg={activeTheme.colors.muted}
+              onMouseUp={() => updateState({ activeStatusPopup: null })}
+            />
+          </box>
           {(['coding', 'planning'] as const).map((mode, idx) => {
             const isSelected = state.selectedPopupIndex === idx;
             const isCurrent = state.agentMode === mode;
@@ -6318,15 +6429,12 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                   });
                 }}
               >
-                <text content={isSelected ? '▶ ' : '  '} fg={isSelected ? 'yellow' : 'gray'} />
-                <text content={mode.toUpperCase()} fg={isSelected ? 'white' : 'gray'} bold={isSelected} />
-                <text content={isCurrent ? ' ●' : ''} fg="yellow" />
+                <text content={isSelected ? '▶ ' : '  '} fg={isSelected ? activeTheme.colors.secondary : activeTheme.colors.muted} />
+                <text content={mode.toUpperCase()} fg={isSelected ? activeTheme.colors.assistantMessage : activeTheme.colors.muted} bold={isSelected} />
+                <text content={isCurrent ? ' ●' : ''} fg={activeTheme.colors.primary} />
               </box>
             );
           })}
-          <box style={{ marginTop: 1, paddingLeft: 1 }}>
-            <text content="Click to select | Esc: Close" fg="gray" italic />
-          </box>
         </box>
       )}
 
@@ -6338,16 +6446,24 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
             right: 5,
             bottom: 2,
             width: 55,
-            height: 12,
+            height: 11,
             flexDirection: 'column',
             zIndex: 1002,
             backgroundColor: 'black'
           }}
           border={true}
           borderStyle="rounded"
-          borderColor="yellow"
-          title=" Context Window "
+          borderColor={activeTheme.colors.border}
         >
+          {/* Header row with title and close button */}
+          <box style={{ flexDirection: 'row', justifyContent: 'space-between', paddingLeft: 1, paddingRight: 1 }}>
+            <text content="Context Window" fg={activeTheme.colors.muted} bold />
+            <text
+              content="×"
+              fg={activeTheme.colors.muted}
+              onMouseUp={() => updateState({ activeStatusPopup: null })}
+            />
+          </box>
           {(() => {
             const MAX_CONTEXT = 200000;
             const total = state.inputTokens + state.outputTokens;
@@ -6359,39 +6475,36 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
             return (
               <>
                 <box style={{ paddingLeft: 1 }}>
-                  <text content="Usage: " fg="gray" />
-                  <text content={`${percentUsed}%`} fg={percentUsed > 80 ? 'red' : percentUsed > 50 ? 'yellow' : 'green'} bold />
-                  <text content={` (${percentLeft}% remaining)`} fg="gray" />
+                  <text content="Usage: " fg={activeTheme.colors.muted} />
+                  <text content={`${percentUsed}%`} fg={percentUsed > 80 ? activeTheme.colors.error : percentUsed > 50 ? activeTheme.colors.warning : activeTheme.colors.success} bold />
+                  <text content={` (${percentLeft}% remaining)`} fg={activeTheme.colors.muted} />
                 </box>
                 <box style={{ paddingLeft: 1, marginTop: 1 }}>
-                  <text content="[" fg="gray" />
-                  <text content={'█'.repeat(filledWidth)} fg={percentUsed > 80 ? 'red' : percentUsed > 50 ? 'yellow' : 'green'} />
-                  <text content={'░'.repeat(emptyWidth)} fg="gray" />
-                  <text content="]" fg="gray" />
+                  <text content="[" fg={activeTheme.colors.muted} />
+                  <text content={'█'.repeat(filledWidth)} fg={percentUsed > 80 ? activeTheme.colors.error : percentUsed > 50 ? activeTheme.colors.warning : activeTheme.colors.success} />
+                  <text content={'░'.repeat(emptyWidth)} fg={activeTheme.colors.muted} />
+                  <text content="]" fg={activeTheme.colors.muted} />
                 </box>
                 <box style={{ paddingLeft: 1, marginTop: 1 }}>
-                  <text content="Input tokens:  " fg="gray" />
-                  <text content={state.inputTokens.toLocaleString()} fg="white" bold />
+                  <text content="Input tokens:  " fg={activeTheme.colors.muted} />
+                  <text content={state.inputTokens.toLocaleString()} fg={activeTheme.colors.secondary} bold />
                 </box>
                 <box style={{ paddingLeft: 1 }}>
-                  <text content="Output tokens: " fg="gray" />
-                  <text content={state.outputTokens.toLocaleString()} fg="white" bold />
+                  <text content="Output tokens: " fg={activeTheme.colors.muted} />
+                  <text content={state.outputTokens.toLocaleString()} fg={activeTheme.colors.secondary} bold />
                 </box>
                 <box style={{ paddingLeft: 1 }}>
-                  <text content="Total:         " fg="gray" />
-                  <text content={total.toLocaleString()} fg="white" bold />
-                  <text content={` / ${MAX_CONTEXT.toLocaleString()}`} fg="gray" />
+                  <text content="Total:         " fg={activeTheme.colors.muted} />
+                  <text content={total.toLocaleString()} fg={activeTheme.colors.secondary} bold />
+                  <text content={` / ${MAX_CONTEXT.toLocaleString()}`} fg={activeTheme.colors.muted} />
                 </box>
                 <box style={{ marginTop: 1, paddingLeft: 1 }}>
-                  <text content="Messages: " fg="gray" />
-                  <text content={`${state.messages.length}`} fg="white" />
+                  <text content="Messages: " fg={activeTheme.colors.muted} />
+                  <text content={`${state.messages.length}`} fg={activeTheme.colors.secondary} />
                 </box>
               </>
             );
           })()}
-          <box style={{ marginTop: 1, paddingLeft: 1 }}>
-            <text content="Click anywhere or Esc to close" fg="gray" italic />
-          </box>
         </box>
       )}
 
@@ -6403,35 +6516,37 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
             right: 25,
             bottom: 2,
             width: 50,
-            height: 10,
+            height: 9,
             flexDirection: 'column',
             zIndex: 1002,
             backgroundColor: 'black'
           }}
           border={true}
           borderStyle="rounded"
-          borderColor="yellow"
-          title=" LSP Status "
+          borderColor={activeTheme.colors.border}
         >
-          <box style={{ paddingLeft: 1 }}>
-            <text content="Language Server Protocol" fg="white" bold />
+          {/* Header row with title and close button */}
+          <box style={{ flexDirection: 'row', justifyContent: 'space-between', paddingLeft: 1, paddingRight: 1 }}>
+            <text content="LSP Status" fg={activeTheme.colors.muted} bold />
+            <text
+              content="×"
+              fg={activeTheme.colors.muted}
+              onMouseUp={() => updateState({ activeStatusPopup: null })}
+            />
           </box>
           <box style={{ paddingLeft: 1, marginTop: 1 }}>
-            <text content="Active Servers: " fg="gray" />
-            <text content={`${aiStats.lsp.activeServers}`} fg="green" bold />
+            <text content="Active Servers: " fg={activeTheme.colors.muted} />
+            <text content={`${aiStats.lsp.activeServers}`} fg={activeTheme.colors.success} bold />
           </box>
           <box style={{ paddingLeft: 1 }}>
-            <text content="Files w/ Diagnostics: " fg="gray" />
-            <text content={`${aiStats.lsp.filesWithDiagnostics}`} fg="white" />
+            <text content="Files w/ Diagnostics: " fg={activeTheme.colors.muted} />
+            <text content={`${aiStats.lsp.filesWithDiagnostics}`} fg={activeTheme.colors.secondary} />
           </box>
           <box style={{ paddingLeft: 1, marginTop: 1 }}>
-            <text content="Servers: " fg="gray" />
+            <text content="Servers: " fg={activeTheme.colors.muted} />
           </box>
           <box style={{ paddingLeft: 2 }}>
-            <text content="TypeScript, CSS, HTML, JSON" fg="cyan" />
-          </box>
-          <box style={{ marginTop: 1, paddingLeft: 1 }}>
-            <text content="Click anywhere or Esc to close" fg="gray" italic />
+            <text content="TypeScript, CSS, HTML, JSON" fg={activeTheme.colors.primary} />
           </box>
         </box>
       )}
@@ -6444,47 +6559,49 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
             right: 15,
             bottom: 2,
             width: 55,
-            height: 14,
+            height: 12,
             flexDirection: 'column',
             zIndex: 1002,
             backgroundColor: 'black'
           }}
           border={true}
           borderStyle="rounded"
-          borderColor="yellow"
-          title=" Index Status "
+          borderColor={activeTheme.colors.border}
         >
-          <box style={{ paddingLeft: 1 }}>
-            <text content="MGrep Semantic Search Index" fg="white" bold />
+          {/* Header row with title and close button */}
+          <box style={{ flexDirection: 'row', justifyContent: 'space-between', paddingLeft: 1, paddingRight: 1 }}>
+            <text content="Index Status" fg={activeTheme.colors.muted} bold />
+            <text
+              content="×"
+              fg={activeTheme.colors.muted}
+              onMouseUp={() => updateState({ activeStatusPopup: null })}
+            />
           </box>
           <box style={{ paddingLeft: 1, marginTop: 1 }}>
-            <text content="Status: " fg="gray" />
+            <text content="Status: " fg={activeTheme.colors.muted} />
             <text
               content={aiStats.indexer.isIndexing ? 'Indexing...' : 'Ready'}
-              fg={aiStats.indexer.isIndexing ? 'yellow' : 'green'}
+              fg={aiStats.indexer.isIndexing ? activeTheme.colors.warning : activeTheme.colors.success}
               bold
             />
           </box>
           {aiStats.indexer.isIndexing && (
             <box style={{ paddingLeft: 1 }}>
-              <text content="Progress: " fg="gray" />
-              <text content={`${aiStats.indexer.current} / ${aiStats.indexer.total}`} fg="white" />
-              <text content={` (${aiStats.indexer.phase})`} fg="cyan" />
+              <text content="Progress: " fg={activeTheme.colors.muted} />
+              <text content={`${aiStats.indexer.current} / ${aiStats.indexer.total}`} fg={activeTheme.colors.secondary} />
+              <text content={` (${aiStats.indexer.phase})`} fg={activeTheme.colors.primary} />
             </box>
           )}
           <box style={{ paddingLeft: 1, marginTop: 1 }}>
-            <text content="Total Files:  " fg="gray" />
-            <text content={`${aiStats.indexer.totalFiles}`} fg="white" bold />
+            <text content="Total Files:  " fg={activeTheme.colors.muted} />
+            <text content={`${aiStats.indexer.totalFiles}`} fg={activeTheme.colors.secondary} bold />
           </box>
           <box style={{ paddingLeft: 1 }}>
-            <text content="Total Chunks: " fg="gray" />
-            <text content={`${aiStats.indexer.totalChunks}`} fg="white" bold />
+            <text content="Total Chunks: " fg={activeTheme.colors.muted} />
+            <text content={`${aiStats.indexer.totalChunks}`} fg={activeTheme.colors.secondary} bold />
           </box>
           <box style={{ paddingLeft: 1, marginTop: 1 }}>
-            <text content="Test search: Type /search <query>" fg="cyan" />
-          </box>
-          <box style={{ marginTop: 1, paddingLeft: 1 }}>
-            <text content="Click anywhere or Esc to close" fg="gray" italic />
+            <text content="Test search: Type /search <query>" fg={activeTheme.colors.primary} />
           </box>
         </box>
       )}
@@ -6497,41 +6614,43 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
             right: 5,
             bottom: 2,
             width: 50,
-            height: 12,
+            height: 11,
             flexDirection: 'column',
             zIndex: 1002,
             backgroundColor: 'black'
           }}
           border={true}
           borderStyle="rounded"
-          borderColor="yellow"
-          title=" AI Model "
+          borderColor={activeTheme.colors.border}
         >
-          <box style={{ paddingLeft: 1 }}>
-            <text content="Current Model" fg="white" bold />
+          {/* Header row with title and close button */}
+          <box style={{ flexDirection: 'row', justifyContent: 'space-between', paddingLeft: 1, paddingRight: 1 }}>
+            <text content="AI Model" fg={activeTheme.colors.muted} bold />
+            <text
+              content="×"
+              fg={activeTheme.colors.muted}
+              onMouseUp={() => updateState({ activeStatusPopup: null })}
+            />
           </box>
           <box style={{ paddingLeft: 1, marginTop: 1 }}>
-            <text content="Model: " fg="gray" />
-            <text content={aiStats.patchModel} fg="cyan" bold />
+            <text content="Model: " fg={activeTheme.colors.muted} />
+            <text content={aiStats.patchModel} fg={activeTheme.colors.primary} bold />
           </box>
           <box style={{ paddingLeft: 1, marginTop: 1 }}>
-            <text content="Provider: " fg="gray" />
-            <text content="Anthropic" fg="white" />
+            <text content="Provider: " fg={activeTheme.colors.muted} />
+            <text content="Anthropic" fg={activeTheme.colors.secondary} />
           </box>
           <box style={{ paddingLeft: 1, marginTop: 1 }}>
-            <text content="Capabilities:" fg="gray" />
+            <text content="Capabilities:" fg={activeTheme.colors.muted} />
           </box>
           <box style={{ paddingLeft: 2 }}>
-            <text content="• Code completion" fg="white" />
+            <text content="• Code completion" fg={activeTheme.colors.secondary} />
           </box>
           <box style={{ paddingLeft: 2 }}>
-            <text content="• Semantic search" fg="white" />
+            <text content="• Semantic search" fg={activeTheme.colors.secondary} />
           </box>
           <box style={{ paddingLeft: 2 }}>
-            <text content="• Context-aware edits" fg="white" />
-          </box>
-          <box style={{ marginTop: 1, paddingLeft: 1 }}>
-            <text content="Click anywhere or Esc to close" fg="gray" italic />
+            <text content="• Context-aware edits" fg={activeTheme.colors.secondary} />
           </box>
         </box>
       )}
