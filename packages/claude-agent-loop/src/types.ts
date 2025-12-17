@@ -9,7 +9,7 @@ import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 /**
  * Model preference options for the Claude agent
  */
-export type ModelPreference = 'fast' | 'smart-sonnet' | 'smart-opus';
+export type ModelPreference = 'fast' | 'smart-sonnet' | 'smart-opus' | 'auto';
 
 /**
  * Item in the message queue waiting to be processed

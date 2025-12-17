@@ -309,6 +309,8 @@ interface Message {
   toolResult?: string;
   isCollapsed?: boolean;
   toolMessages?: string[]; // Preview messages from subagent
+  // Startup banner marker
+  isBanner?: boolean;
 }
 
 // Represents a file chip in the input
@@ -339,6 +341,1946 @@ interface ThinkingSession {
   content: string;
 }
 
+// Theme colors for customization
+interface Theme {
+  name: string;
+  description: string;
+  colors: {
+    // Primary colors
+    primary: string;
+    secondary: string;
+    accent: string;
+    muted: string;
+    // Messages
+    userMessage: string;
+    assistantMessage: string;
+    systemMessage: string;
+    errorMessage: string;
+    // UI elements
+    border: string;
+    inputBorder: string;
+    statusBar: string;
+    highlight: string;
+    // Chips/badges
+    toolChip: string;
+    toolChipActive: string;
+    thinkingChip: string;
+    // KITT animation
+    kittColor: string;
+    kittBracket: string;
+    kittLit: string;
+    kittDim: string;
+    kittFaint: string;
+    kittOff: string;
+    // Status indicators
+    success: string;
+    warning: string;
+    error: string;
+    info: string;
+    // Separators
+    separator: string;
+  };
+}
+
+// Theme persistence path
+const THEME_CONFIG_FILE = path.join(os.homedir(), '.claudelet', 'theme.json');
+
+// Load saved theme name
+function loadSavedThemeName(): string | null {
+  try {
+    if (fs.existsSync(THEME_CONFIG_FILE)) {
+      const data = JSON.parse(fs.readFileSync(THEME_CONFIG_FILE, 'utf-8'));
+      return data.theme || null;
+    }
+  } catch {
+    // Ignore errors
+  }
+  return null;
+}
+
+// Save theme name
+function saveThemeName(themeName: string): void {
+  try {
+    const dir = path.dirname(THEME_CONFIG_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    }
+    fs.writeFileSync(THEME_CONFIG_FILE, JSON.stringify({ theme: themeName }, null, 2), { mode: 0o600 });
+  } catch {
+    // Ignore errors
+  }
+}
+
+// Default themes - ALL converted from opencode-stt (58 themes)
+const DEFAULT_THEMES: Theme[] = [
+  {
+    name: 'Claudelet',
+    description: 'Default Claudelet theme (based on Nord)',
+    colors: {
+      primary: '#88C0D0',
+      secondary: '#81A1C1',
+      accent: '#8FBCBB',
+      muted: '#8B95A7',
+      userMessage: '#D08770',
+      assistantMessage: '#ECEFF4',
+      systemMessage: '#88C0D0',
+      errorMessage: '#BF616A',
+      border: '#434C5E',
+      inputBorder: '#4C566A',
+      statusBar: '#88C0D0',
+      highlight: '#8FBCBB',
+      toolChip: '#434C5E',
+      toolChipActive: '#88C0D0',
+      thinkingChip: '#D08770',
+      kittColor: '#88C0D0',
+      kittBracket: '#81A1C1',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#A3BE8C',
+      warning: '#D08770',
+      error: '#BF616A',
+      info: '#88C0D0',
+      separator: '#434C5E',
+    },
+  },
+  {
+    name: 'Amber Glow',
+    description: 'Amber Glow',
+    colors: {
+      primary: '#ffb86c',
+      secondary: '#d4a5d4',
+      accent: '#f9cb8f',
+      muted: '#b8a28e',
+      userMessage: '#ffe066',
+      assistantMessage: '#f5e6d3',
+      systemMessage: '#ffb86c',
+      errorMessage: '#ff8a65',
+      border: '#3d352d',
+      inputBorder: '#f9cb8f',
+      statusBar: '#ffb86c',
+      highlight: '#f9cb8f',
+      toolChip: '#2f2a24',
+      toolChipActive: '#ffb86c',
+      thinkingChip: '#ffe066',
+      kittColor: '#ffb86c',
+      kittBracket: '#d4a5d4',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#a7c080',
+      warning: '#ffe066',
+      error: '#ff8a65',
+      info: '#d4a574',
+      separator: '#3d352d',
+    },
+  },
+  {
+    name: 'Arctic Night',
+    description: 'Arctic Night',
+    colors: {
+      primary: '#5eb3d6',
+      secondary: '#a891d6',
+      accent: '#4ecdc4',
+      muted: '#7a9fb5',
+      userMessage: '#e8c488',
+      assistantMessage: '#d0e7f2',
+      systemMessage: '#5eb3d6',
+      errorMessage: '#d891a6',
+      border: '#1f3847',
+      inputBorder: '#88d4e8',
+      statusBar: '#5eb3d6',
+      highlight: '#4ecdc4',
+      toolChip: '#152838',
+      toolChipActive: '#5eb3d6',
+      thinkingChip: '#e8c488',
+      kittColor: '#5eb3d6',
+      kittBracket: '#a891d6',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#6bc4a6',
+      warning: '#e8c488',
+      error: '#d891a6',
+      info: '#88d4e8',
+      separator: '#1f3847',
+    },
+  },
+  {
+    name: 'Ash',
+    description: 'Ash',
+    colors: {
+      primary: '#b8b8c2',
+      secondary: '#9292a0',
+      accent: '#eaeaed',
+      muted: '#98989f',
+      userMessage: '#b8b8c2',
+      assistantMessage: '#d8d8dc',
+      systemMessage: '#b8b8c2',
+      errorMessage: '#dbdbe0',
+      border: '#474750',
+      inputBorder: '#b8b8c2',
+      statusBar: '#b8b8c2',
+      highlight: '#eaeaed',
+      toolChip: '#27272f',
+      toolChipActive: '#b8b8c2',
+      thinkingChip: '#b8b8c2',
+      kittColor: '#b8b8c2',
+      kittBracket: '#9292a0',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#9292a0',
+      warning: '#b8b8c2',
+      error: '#dbdbe0',
+      info: '#b8b8c2',
+      separator: '#474750',
+    },
+  },
+  {
+    name: 'Aura',
+    description: 'Aura',
+    colors: {
+      primary: '#a277ff',
+      secondary: '#f694ff',
+      accent: '#a277ff',
+      muted: '#6d6d6d',
+      userMessage: '#ffca85',
+      assistantMessage: '#edecee',
+      systemMessage: '#a277ff',
+      errorMessage: '#ff6767',
+      border: '#2d2d2d',
+      inputBorder: '#6d6d6d',
+      statusBar: '#a277ff',
+      highlight: '#a277ff',
+      toolChip: '#15141b',
+      toolChipActive: '#a277ff',
+      thinkingChip: '#ffca85',
+      kittColor: '#a277ff',
+      kittBracket: '#f694ff',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#61ffca',
+      warning: '#ffca85',
+      error: '#ff6767',
+      info: '#a277ff',
+      separator: '#2d2d2d',
+    },
+  },
+  {
+    name: 'Ayu',
+    description: 'Ayu',
+    colors: {
+      primary: '#59C2FF',
+      secondary: '#D2A6FF',
+      accent: '#E6B450',
+      muted: '#565B66',
+      userMessage: '#E6B673',
+      assistantMessage: '#BFBDB6',
+      systemMessage: '#59C2FF',
+      errorMessage: '#D95757',
+      border: '#6C7380',
+      inputBorder: '#6C7380',
+      statusBar: '#59C2FF',
+      highlight: '#E6B450',
+      toolChip: '#0D1017',
+      toolChipActive: '#59C2FF',
+      thinkingChip: '#E6B673',
+      kittColor: '#59C2FF',
+      kittBracket: '#D2A6FF',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#7FD962',
+      warning: '#E6B673',
+      error: '#D95757',
+      info: '#39BAE6',
+      separator: '#6C7380',
+    },
+  },
+  {
+    name: 'Carbon Steel',
+    description: 'Carbon Steel',
+    colors: {
+      primary: '#5fb4e4',
+      secondary: '#a4b3c2',
+      accent: '#5fd7ff',
+      muted: '#8892a0',
+      userMessage: '#ff9e64',
+      assistantMessage: '#d8dee9',
+      systemMessage: '#5fb4e4',
+      errorMessage: '#f28b82',
+      border: '#2a3340',
+      inputBorder: '#5fd7ff',
+      statusBar: '#5fb4e4',
+      highlight: '#5fd7ff',
+      toolChip: '#1d252e',
+      toolChipActive: '#5fb4e4',
+      thinkingChip: '#ff9e64',
+      kittColor: '#5fb4e4',
+      kittBracket: '#a4b3c2',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#5fc98e',
+      warning: '#ff9e64',
+      error: '#f28b82',
+      info: '#4eb4b4',
+      separator: '#2a3340',
+    },
+  },
+  {
+    name: 'Catppuccin',
+    description: 'Catppuccin',
+    colors: {
+      primary: '#89b4fa',
+      secondary: '#cba6f7',
+      accent: '#f5c2e7',
+      muted: '#bac2de',
+      userMessage: '#f9e2af',
+      assistantMessage: '#cdd6f4',
+      systemMessage: '#89b4fa',
+      errorMessage: '#f38ba8',
+      border: '#313244',
+      inputBorder: '#45475a',
+      statusBar: '#89b4fa',
+      highlight: '#f5c2e7',
+      toolChip: '#11111b',
+      toolChipActive: '#89b4fa',
+      thinkingChip: '#f9e2af',
+      kittColor: '#89b4fa',
+      kittBracket: '#cba6f7',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#a6e3a1',
+      warning: '#f9e2af',
+      error: '#f38ba8',
+      info: '#94e2d5',
+      separator: '#313244',
+    },
+  },
+  {
+    name: 'Catppuccin Macchiato',
+    description: 'Catppuccin Macchiato',
+    colors: {
+      primary: '#8aadf4',
+      secondary: '#c6a0f6',
+      accent: '#f5bde6',
+      muted: '#b8c0e0',
+      userMessage: '#eed49f',
+      assistantMessage: '#cad3f5',
+      systemMessage: '#8aadf4',
+      errorMessage: '#ed8796',
+      border: '#363a4f',
+      inputBorder: '#494d64',
+      statusBar: '#8aadf4',
+      highlight: '#f5bde6',
+      toolChip: '#181926',
+      toolChipActive: '#8aadf4',
+      thinkingChip: '#eed49f',
+      kittColor: '#8aadf4',
+      kittBracket: '#c6a0f6',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#a6da95',
+      warning: '#eed49f',
+      error: '#ed8796',
+      info: '#8bd5ca',
+      separator: '#363a4f',
+    },
+  },
+  {
+    name: 'Charcoal',
+    description: 'Charcoal',
+    colors: {
+      primary: '#b3b3bd',
+      secondary: '#8a8a98',
+      accent: '#ededf0',
+      muted: '#94949e',
+      userMessage: '#b3b3bd',
+      assistantMessage: '#dcdce0',
+      systemMessage: '#b3b3bd',
+      errorMessage: '#d6d6dc',
+      border: '#42424e',
+      inputBorder: '#b3b3bd',
+      statusBar: '#b3b3bd',
+      highlight: '#ededf0',
+      toolChip: '#23232b',
+      toolChipActive: '#b3b3bd',
+      thinkingChip: '#b3b3bd',
+      kittColor: '#b3b3bd',
+      kittBracket: '#8a8a98',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#8a8a98',
+      warning: '#b3b3bd',
+      error: '#d6d6dc',
+      info: '#b3b3bd',
+      separator: '#42424e',
+    },
+  },
+  {
+    name: 'Cobalt2',
+    description: 'Cobalt2',
+    colors: {
+      primary: '#0088ff',
+      secondary: '#9a5feb',
+      accent: '#2affdf',
+      muted: '#adb7c9',
+      userMessage: '#ffc600',
+      assistantMessage: '#ffffff',
+      systemMessage: '#0088ff',
+      errorMessage: '#ff0088',
+      border: '#1f4662',
+      inputBorder: '#0088ff',
+      statusBar: '#0088ff',
+      highlight: '#2affdf',
+      toolChip: '#1f4662',
+      toolChipActive: '#0088ff',
+      thinkingChip: '#ffc600',
+      kittColor: '#0088ff',
+      kittBracket: '#9a5feb',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#9eff80',
+      warning: '#ffc600',
+      error: '#ff0088',
+      info: '#ff9d00',
+      separator: '#1f4662',
+    },
+  },
+  {
+    name: 'Codesurf',
+    description: 'Codesurf',
+    colors: {
+      primary: '#caced1',
+      secondary: '#90959c',
+      accent: '#caced1',
+      muted: '#7b828c',
+      userMessage: '#9a9a9a',
+      assistantMessage: '#e6e8ea',
+      systemMessage: '#caced1',
+      errorMessage: '#8f8f8f',
+      border: '#3b424d',
+      inputBorder: '#454d58',
+      statusBar: '#caced1',
+      highlight: '#caced1',
+      toolChip: '#262a30',
+      toolChipActive: '#caced1',
+      thinkingChip: '#9a9a9a',
+      kittColor: '#caced1',
+      kittBracket: '#90959c',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#838383',
+      warning: '#9a9a9a',
+      error: '#8f8f8f',
+      info: '#9ea2a8',
+      separator: '#3b424d',
+    },
+  },
+  {
+    name: 'Codesurf Blue',
+    description: 'Codesurf Blue',
+    colors: {
+      primary: '#a8c0ff',
+      secondary: '#8c93a6',
+      accent: '#a8c0ff',
+      muted: '#7b828c',
+      userMessage: '#d7c6a0',
+      assistantMessage: '#e6e8ea',
+      systemMessage: '#a8c0ff',
+      errorMessage: '#d9a7af',
+      border: '#3b424d',
+      inputBorder: '#454d58',
+      statusBar: '#a8c0ff',
+      highlight: '#a8c0ff',
+      toolChip: '#262a30',
+      toolChipActive: '#a8c0ff',
+      thinkingChip: '#d7c6a0',
+      kittColor: '#a8c0ff',
+      kittBracket: '#8c93a6',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#9fc4c0',
+      warning: '#d7c6a0',
+      error: '#d9a7af',
+      info: '#9fbefc',
+      separator: '#3b424d',
+    },
+  },
+  {
+    name: 'Codesurf Green',
+    description: 'Codesurf Green',
+    colors: {
+      primary: '#b6d1b7',
+      secondary: '#889489',
+      accent: '#b6d1b7',
+      muted: '#7b828c',
+      userMessage: '#d6c7a1',
+      assistantMessage: '#e6e8ea',
+      systemMessage: '#b6d1b7',
+      errorMessage: '#cba1a5',
+      border: '#3b424d',
+      inputBorder: '#454d58',
+      statusBar: '#b6d1b7',
+      highlight: '#b6d1b7',
+      toolChip: '#262a30',
+      toolChipActive: '#b6d1b7',
+      thinkingChip: '#d6c7a1',
+      kittColor: '#b6d1b7',
+      kittBracket: '#889489',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#a6d1ad',
+      warning: '#d6c7a1',
+      error: '#cba1a5',
+      info: '#a5c7b3',
+      separator: '#3b424d',
+    },
+  },
+  {
+    name: 'Codesurf Red',
+    description: 'Codesurf Red',
+    colors: {
+      primary: '#f0b5c0',
+      secondary: '#95848a',
+      accent: '#f0b5c0',
+      muted: '#7b828c',
+      userMessage: '#d9b8a1',
+      assistantMessage: '#e6e8ea',
+      systemMessage: '#f0b5c0',
+      errorMessage: '#f2a0ac',
+      border: '#3b424d',
+      inputBorder: '#454d58',
+      statusBar: '#f0b5c0',
+      highlight: '#f0b5c0',
+      toolChip: '#262a30',
+      toolChipActive: '#f0b5c0',
+      thinkingChip: '#d9b8a1',
+      kittColor: '#f0b5c0',
+      kittBracket: '#95848a',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#a9c0b2',
+      warning: '#d9b8a1',
+      error: '#f2a0ac',
+      info: '#f0b5c0',
+      separator: '#3b424d',
+    },
+  },
+  {
+    name: 'Colorless',
+    description: 'Colorless',
+    colors: {
+      primary: '#caced1',
+      secondary: '#90959c',
+      accent: '#caced1',
+      muted: '#7b828c',
+      userMessage: '#9a9a9a',
+      assistantMessage: '#e6e8ea',
+      systemMessage: '#caced1',
+      errorMessage: '#8f8f8f',
+      border: '#3b424d',
+      inputBorder: '#454d58',
+      statusBar: '#caced1',
+      highlight: '#caced1',
+      toolChip: '#262a30',
+      toolChipActive: '#caced1',
+      thinkingChip: '#9a9a9a',
+      kittColor: '#caced1',
+      kittBracket: '#90959c',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#838383',
+      warning: '#9a9a9a',
+      error: '#8f8f8f',
+      info: '#9ea2a8',
+      separator: '#3b424d',
+    },
+  },
+  {
+    name: 'Colorless Hints Blue',
+    description: 'Colorless Hints Blue',
+    colors: {
+      primary: '#a8c0ff',
+      secondary: '#8c93a6',
+      accent: '#a8c0ff',
+      muted: '#7b828c',
+      userMessage: '#d7c6a0',
+      assistantMessage: '#e6e8ea',
+      systemMessage: '#a8c0ff',
+      errorMessage: '#d9a7af',
+      border: '#3b424d',
+      inputBorder: '#454d58',
+      statusBar: '#a8c0ff',
+      highlight: '#a8c0ff',
+      toolChip: '#262a30',
+      toolChipActive: '#a8c0ff',
+      thinkingChip: '#d7c6a0',
+      kittColor: '#a8c0ff',
+      kittBracket: '#8c93a6',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#9fc4c0',
+      warning: '#d7c6a0',
+      error: '#d9a7af',
+      info: '#9fbefc',
+      separator: '#3b424d',
+    },
+  },
+  {
+    name: 'Colorless Hints Green',
+    description: 'Colorless Hints Green',
+    colors: {
+      primary: '#b6d1b7',
+      secondary: '#889489',
+      accent: '#b6d1b7',
+      muted: '#7b828c',
+      userMessage: '#d6c7a1',
+      assistantMessage: '#e6e8ea',
+      systemMessage: '#b6d1b7',
+      errorMessage: '#cba1a5',
+      border: '#3b424d',
+      inputBorder: '#454d58',
+      statusBar: '#b6d1b7',
+      highlight: '#b6d1b7',
+      toolChip: '#262a30',
+      toolChipActive: '#b6d1b7',
+      thinkingChip: '#d6c7a1',
+      kittColor: '#b6d1b7',
+      kittBracket: '#889489',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#a6d1ad',
+      warning: '#d6c7a1',
+      error: '#cba1a5',
+      info: '#a5c7b3',
+      separator: '#3b424d',
+    },
+  },
+  {
+    name: 'Colorless Hints Red',
+    description: 'Colorless Hints Red',
+    colors: {
+      primary: '#f0b5c0',
+      secondary: '#95848a',
+      accent: '#f0b5c0',
+      muted: '#7b828c',
+      userMessage: '#d9b8a1',
+      assistantMessage: '#e6e8ea',
+      systemMessage: '#f0b5c0',
+      errorMessage: '#f2a0ac',
+      border: '#3b424d',
+      inputBorder: '#454d58',
+      statusBar: '#f0b5c0',
+      highlight: '#f0b5c0',
+      toolChip: '#262a30',
+      toolChipActive: '#f0b5c0',
+      thinkingChip: '#d9b8a1',
+      kittColor: '#f0b5c0',
+      kittBracket: '#95848a',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#a9c0b2',
+      warning: '#d9b8a1',
+      error: '#f2a0ac',
+      info: '#f0b5c0',
+      separator: '#3b424d',
+    },
+  },
+  {
+    name: 'Crimson Spark',
+    description: 'Crimson Spark',
+    colors: {
+      primary: '#ff4057',
+      secondary: '#d47fb8',
+      accent: '#ff5f87',
+      muted: '#b89099',
+      userMessage: '#ff7f3f',
+      assistantMessage: '#f5e1e8',
+      systemMessage: '#ff4057',
+      errorMessage: '#ff4057',
+      border: '#3d2530',
+      inputBorder: '#ff5f87',
+      statusBar: '#ff4057',
+      highlight: '#ff5f87',
+      toolChip: '#2f1a27',
+      toolChipActive: '#ff4057',
+      thinkingChip: '#ff7f3f',
+      kittColor: '#ff4057',
+      kittBracket: '#d47fb8',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#5fdf9f',
+      warning: '#ff7f3f',
+      error: '#ff4057',
+      info: '#cf9fff',
+      separator: '#3d2530',
+    },
+  },
+  {
+    name: 'Cyber Nexus',
+    description: 'Cyber Nexus',
+    colors: {
+      primary: '#0dffea',
+      secondary: '#bf40ff',
+      accent: '#00d9ff',
+      muted: '#7a8fbd',
+      userMessage: '#ff6b1a',
+      assistantMessage: '#e0e8ff',
+      systemMessage: '#0dffea',
+      errorMessage: '#ff1f8f',
+      border: '#1f2d47',
+      inputBorder: '#0dffea',
+      statusBar: '#0dffea',
+      highlight: '#00d9ff',
+      toolChip: '#141b2b',
+      toolChipActive: '#0dffea',
+      thinkingChip: '#ff6b1a',
+      kittColor: '#0dffea',
+      kittBracket: '#bf40ff',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#39ff14',
+      warning: '#ff6b1a',
+      error: '#ff1f8f',
+      info: '#4d9fff',
+      separator: '#1f2d47',
+    },
+  },
+  {
+    name: 'Deep Ocean',
+    description: 'Deep Ocean',
+    colors: {
+      primary: '#4dabf7',
+      secondary: '#9775fa',
+      accent: '#3bc9db',
+      muted: '#85a1b3',
+      userMessage: '#ffd43b',
+      assistantMessage: '#d4e6f1',
+      systemMessage: '#4dabf7',
+      errorMessage: '#fa5252',
+      border: '#1a3545',
+      inputBorder: '#3bc9db',
+      statusBar: '#4dabf7',
+      highlight: '#3bc9db',
+      toolChip: '#112938',
+      toolChipActive: '#4dabf7',
+      thinkingChip: '#ffd43b',
+      kittColor: '#4dabf7',
+      kittBracket: '#9775fa',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#20c997',
+      warning: '#ffd43b',
+      error: '#fa5252',
+      info: '#66d9ef',
+      separator: '#1a3545',
+    },
+  },
+  {
+    name: 'Dracula',
+    description: 'Dracula',
+    colors: {
+      primary: '#bd93f9',
+      secondary: '#ff79c6',
+      accent: '#8be9fd',
+      muted: '#6272a4',
+      userMessage: '#f1fa8c',
+      assistantMessage: '#f8f8f2',
+      systemMessage: '#bd93f9',
+      errorMessage: '#ff5555',
+      border: '#44475a',
+      inputBorder: '#bd93f9',
+      statusBar: '#bd93f9',
+      highlight: '#8be9fd',
+      toolChip: '#44475a',
+      toolChipActive: '#bd93f9',
+      thinkingChip: '#f1fa8c',
+      kittColor: '#bd93f9',
+      kittBracket: '#ff79c6',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#50fa7b',
+      warning: '#f1fa8c',
+      error: '#ff5555',
+      info: '#ffb86c',
+      separator: '#44475a',
+    },
+  },
+  {
+    name: 'Emerald Twilight',
+    description: 'Emerald Twilight',
+    colors: {
+      primary: '#5af0c8',
+      secondary: '#bd93f9',
+      accent: '#7ee8c8',
+      muted: '#8ba8a3',
+      userMessage: '#cfdf8f',
+      assistantMessage: '#d8e9e7',
+      systemMessage: '#5af0c8',
+      errorMessage: '#ff6b7a',
+      border: '#1f3640',
+      inputBorder: '#5af0c8',
+      statusBar: '#5af0c8',
+      highlight: '#7ee8c8',
+      toolChip: '#172c34',
+      toolChipActive: '#5af0c8',
+      thinkingChip: '#cfdf8f',
+      kittColor: '#5af0c8',
+      kittBracket: '#bd93f9',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#50fa7b',
+      warning: '#cfdf8f',
+      error: '#ff6b7a',
+      info: '#8be9fd',
+      separator: '#1f3640',
+    },
+  },
+  {
+    name: 'Everforest',
+    description: 'Everforest',
+    colors: {
+      primary: '#a7c080',
+      secondary: '#7fbbb3',
+      accent: '#d699b6',
+      muted: '#7a8478',
+      userMessage: '#e69875',
+      assistantMessage: '#d3c6aa',
+      systemMessage: '#a7c080',
+      errorMessage: '#e67e80',
+      border: '#859289',
+      inputBorder: '#9da9a0',
+      statusBar: '#a7c080',
+      highlight: '#d699b6',
+      toolChip: '#343f44',
+      toolChipActive: '#a7c080',
+      thinkingChip: '#e69875',
+      kittColor: '#a7c080',
+      kittBracket: '#7fbbb3',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#a7c080',
+      warning: '#e69875',
+      error: '#e67e80',
+      info: '#83c092',
+      separator: '#859289',
+    },
+  },
+  {
+    name: 'Flexoki',
+    description: 'Flexoki',
+    colors: {
+      primary: '#DA702C',
+      secondary: '#4385BE',
+      accent: '#8B7EC8',
+      muted: '#6F6E69',
+      userMessage: '#DA702C',
+      assistantMessage: '#CECDC3',
+      systemMessage: '#DA702C',
+      errorMessage: '#D14D41',
+      border: '#575653',
+      inputBorder: '#6F6E69',
+      statusBar: '#DA702C',
+      highlight: '#8B7EC8',
+      toolChip: '#282726',
+      toolChipActive: '#DA702C',
+      thinkingChip: '#DA702C',
+      kittColor: '#DA702C',
+      kittBracket: '#4385BE',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#879A39',
+      warning: '#DA702C',
+      error: '#D14D41',
+      info: '#3AA99F',
+      separator: '#575653',
+    },
+  },
+  {
+    name: 'Galactic Purple',
+    description: 'Galactic Purple',
+    colors: {
+      primary: '#b794f6',
+      secondary: '#d4a5f6',
+      accent: '#e879f9',
+      muted: '#a08cc8',
+      userMessage: '#ffb86c',
+      assistantMessage: '#e9dcff',
+      systemMessage: '#b794f6',
+      errorMessage: '#ff6b9d',
+      border: '#372454',
+      inputBorder: '#e879f9',
+      statusBar: '#b794f6',
+      highlight: '#e879f9',
+      toolChip: '#291a3f',
+      toolChipActive: '#b794f6',
+      thinkingChip: '#ffb86c',
+      kittColor: '#b794f6',
+      kittBracket: '#d4a5f6',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#8ff9c8',
+      warning: '#ffb86c',
+      error: '#ff6b9d',
+      info: '#818cf8',
+      separator: '#372454',
+    },
+  },
+  {
+    name: 'Github',
+    description: 'Github',
+    colors: {
+      primary: '#58a6ff',
+      secondary: '#bc8cff',
+      accent: '#39c5cf',
+      muted: '#8b949e',
+      userMessage: '#e3b341',
+      assistantMessage: '#c9d1d9',
+      systemMessage: '#58a6ff',
+      errorMessage: '#f85149',
+      border: '#30363d',
+      inputBorder: '#58a6ff',
+      statusBar: '#58a6ff',
+      highlight: '#39c5cf',
+      toolChip: '#161b22',
+      toolChipActive: '#58a6ff',
+      thinkingChip: '#e3b341',
+      kittColor: '#58a6ff',
+      kittBracket: '#bc8cff',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#3fb950',
+      warning: '#e3b341',
+      error: '#f85149',
+      info: '#d29922',
+      separator: '#30363d',
+    },
+  },
+  {
+    name: 'Graphite',
+    description: 'Graphite',
+    colors: {
+      primary: '#adadb8',
+      secondary: '#82828f',
+      accent: '#f0f0f4',
+      muted: '#90909a',
+      userMessage: '#adadb8',
+      assistantMessage: '#e0e0e3',
+      systemMessage: '#adadb8',
+      errorMessage: '#cfcfd7',
+      border: '#3c3c45',
+      inputBorder: '#adadb8',
+      statusBar: '#adadb8',
+      highlight: '#f0f0f4',
+      toolChip: '#1f1f23',
+      toolChipActive: '#adadb8',
+      thinkingChip: '#adadb8',
+      kittColor: '#adadb8',
+      kittBracket: '#82828f',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#82828f',
+      warning: '#adadb8',
+      error: '#cfcfd7',
+      info: '#adadb8',
+      separator: '#3c3c45',
+    },
+  },
+  {
+    name: 'Gruvbox',
+    description: 'Gruvbox',
+    colors: {
+      primary: '#83a598',
+      secondary: '#d3869b',
+      accent: '#8ec07c',
+      muted: '#928374',
+      userMessage: '#fe8019',
+      assistantMessage: '#ebdbb2',
+      systemMessage: '#83a598',
+      errorMessage: '#fb4934',
+      border: '#665c54',
+      inputBorder: '#ebdbb2',
+      statusBar: '#83a598',
+      highlight: '#8ec07c',
+      toolChip: '#504945',
+      toolChipActive: '#83a598',
+      thinkingChip: '#fe8019',
+      kittColor: '#83a598',
+      kittBracket: '#d3869b',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#b8bb26',
+      warning: '#fe8019',
+      error: '#fb4934',
+      info: '#fabd2f',
+      separator: '#665c54',
+    },
+  },
+  {
+    name: 'Kanagawa',
+    description: 'Kanagawa',
+    colors: {
+      primary: '#7E9CD8',
+      secondary: '#957FB8',
+      accent: '#D27E99',
+      muted: '#727169',
+      userMessage: '#D7A657',
+      assistantMessage: '#DCD7BA',
+      systemMessage: '#7E9CD8',
+      errorMessage: '#E82424',
+      border: '#54546D',
+      inputBorder: '#C38D9D',
+      statusBar: '#7E9CD8',
+      highlight: '#D27E99',
+      toolChip: '#363646',
+      toolChipActive: '#7E9CD8',
+      thinkingChip: '#D7A657',
+      kittColor: '#7E9CD8',
+      kittBracket: '#957FB8',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#98BB6C',
+      warning: '#D7A657',
+      error: '#E82424',
+      info: '#76946A',
+      separator: '#54546D',
+    },
+  },
+  {
+    name: 'Knight Rider',
+    description: 'Classic KITT red',
+    colors: {
+      primary: '#ff0000',
+      secondary: '#ffffff',
+      accent: '#ffff00',
+      muted: '#888888',
+      userMessage: '#ffff00',
+      assistantMessage: '#ffffff',
+      systemMessage: '#ff0000',
+      errorMessage: '#ff0000',
+      border: '#ff0000',
+      inputBorder: '#ff0000',
+      statusBar: '#ff0000',
+      highlight: '#ff0000',
+      toolChip: '#330000',
+      toolChipActive: '#ffff00',
+      thinkingChip: '#ffff00',
+      kittColor: '#ff0000',
+      kittBracket: '#ff0000',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#00ff00',
+      warning: '#ffff00',
+      error: '#ff0000',
+      info: '#00ffff',
+      separator: '#888888',
+    },
+  },
+  {
+    name: 'Material',
+    description: 'Material',
+    colors: {
+      primary: '#82aaff',
+      secondary: '#c792ea',
+      accent: '#89ddff',
+      muted: '#546e7a',
+      userMessage: '#ffcb6b',
+      assistantMessage: '#eeffff',
+      systemMessage: '#82aaff',
+      errorMessage: '#f07178',
+      border: '#37474f',
+      inputBorder: '#82aaff',
+      statusBar: '#82aaff',
+      highlight: '#89ddff',
+      toolChip: '#37474f',
+      toolChipActive: '#82aaff',
+      thinkingChip: '#ffcb6b',
+      kittColor: '#82aaff',
+      kittBracket: '#c792ea',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#c3e88d',
+      warning: '#ffcb6b',
+      error: '#f07178',
+      info: '#ffcb6b',
+      separator: '#37474f',
+    },
+  },
+  {
+    name: 'Matrix',
+    description: 'Matrix',
+    colors: {
+      primary: '#2eff6a',
+      secondary: '#00efff',
+      accent: '#c770ff',
+      muted: '#8ca391',
+      userMessage: '#e6ff57',
+      assistantMessage: '#62ff94',
+      systemMessage: '#2eff6a',
+      errorMessage: '#ff4b4b',
+      border: '#1e2a1b',
+      inputBorder: '#2eff6a',
+      statusBar: '#2eff6a',
+      highlight: '#c770ff',
+      toolChip: '#141c12',
+      toolChipActive: '#2eff6a',
+      thinkingChip: '#e6ff57',
+      kittColor: '#2eff6a',
+      kittBracket: '#00efff',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#62ff94',
+      warning: '#e6ff57',
+      error: '#ff4b4b',
+      info: '#30b3ff',
+      separator: '#1e2a1b',
+    },
+  },
+  {
+    name: 'Mercury',
+    description: 'Mercury',
+    colors: {
+      primary: '#8da4f5',
+      secondary: '#a7b6f8',
+      accent: '#8da4f5',
+      muted: '#9d9da8',
+      userMessage: '#fc9b6f',
+      assistantMessage: '#dddde5',
+      systemMessage: '#8da4f5',
+      errorMessage: '#fc92b4',
+      border: '#3a3a4a',
+      inputBorder: '#8da4f5',
+      statusBar: '#8da4f5',
+      highlight: '#8da4f5',
+      toolChip: '#272735',
+      toolChipActive: '#8da4f5',
+      thinkingChip: '#fc9b6f',
+      kittColor: '#8da4f5',
+      kittBracket: '#a7b6f8',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#77c599',
+      warning: '#fc9b6f',
+      error: '#fc92b4',
+      info: '#77becf',
+      separator: '#3a3a4a',
+    },
+  },
+  {
+    name: 'Midnight Forge',
+    description: 'Midnight Forge',
+    colors: {
+      primary: '#4fc3f7',
+      secondary: '#ba68c8',
+      accent: '#26c6da',
+      muted: '#8585ad',
+      userMessage: '#ffb74d',
+      assistantMessage: '#d4d4e8',
+      systemMessage: '#4fc3f7',
+      errorMessage: '#ef5350',
+      border: '#2a2a47',
+      inputBorder: '#4fc3f7',
+      statusBar: '#4fc3f7',
+      highlight: '#26c6da',
+      toolChip: '#1d1d34',
+      toolChipActive: '#4fc3f7',
+      thinkingChip: '#ffb74d',
+      kittColor: '#4fc3f7',
+      kittBracket: '#ba68c8',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#66bb6a',
+      warning: '#ffb74d',
+      error: '#ef5350',
+      info: '#4fc3f7',
+      separator: '#2a2a47',
+    },
+  },
+  {
+    name: 'Monokai',
+    description: 'Monokai',
+    colors: {
+      primary: '#66d9ef',
+      secondary: '#ae81ff',
+      accent: '#a6e22e',
+      muted: '#75715e',
+      userMessage: '#e6db74',
+      assistantMessage: '#f8f8f2',
+      systemMessage: '#66d9ef',
+      errorMessage: '#f92672',
+      border: '#3e3d32',
+      inputBorder: '#66d9ef',
+      statusBar: '#66d9ef',
+      highlight: '#a6e22e',
+      toolChip: '#3e3d32',
+      toolChipActive: '#66d9ef',
+      thinkingChip: '#e6db74',
+      kittColor: '#66d9ef',
+      kittBracket: '#ae81ff',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#a6e22e',
+      warning: '#e6db74',
+      error: '#f92672',
+      info: '#fd971f',
+      separator: '#3e3d32',
+    },
+  },
+  {
+    name: 'Monolith',
+    description: 'Monolith',
+    colors: {
+      primary: '#aaaaaa',
+      secondary: '#8a8a8a',
+      accent: '#ffffff',
+      muted: '#888888',
+      userMessage: '#aaaaaa',
+      assistantMessage: '#e8e8e8',
+      systemMessage: '#aaaaaa',
+      errorMessage: '#cacaca',
+      border: '#3a3a3a',
+      inputBorder: '#aaaaaa',
+      statusBar: '#aaaaaa',
+      highlight: '#ffffff',
+      toolChip: '#151515',
+      toolChipActive: '#aaaaaa',
+      thinkingChip: '#aaaaaa',
+      kittColor: '#aaaaaa',
+      kittBracket: '#8a8a8a',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#8a8a8a',
+      warning: '#aaaaaa',
+      error: '#cacaca',
+      info: '#aaaaaa',
+      separator: '#3a3a3a',
+    },
+  },
+  {
+    name: 'Neon Wave',
+    description: 'Neon Wave',
+    colors: {
+      primary: '#3a86ff',
+      secondary: '#8338ec',
+      accent: '#06ffa5',
+      muted: '#a08dc0',
+      userMessage: '#fb5607',
+      assistantMessage: '#e8dfff',
+      systemMessage: '#3a86ff',
+      errorMessage: '#ff006e',
+      border: '#3d2060',
+      inputBorder: '#06ffa5',
+      statusBar: '#3a86ff',
+      highlight: '#06ffa5',
+      toolChip: '#2d1654',
+      toolChipActive: '#3a86ff',
+      thinkingChip: '#fb5607',
+      kittColor: '#3a86ff',
+      kittBracket: '#8338ec',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#06ffa5',
+      warning: '#fb5607',
+      error: '#ff006e',
+      info: '#3a86ff',
+      separator: '#3d2060',
+    },
+  },
+  {
+    name: 'Nightowl',
+    description: 'Nightowl',
+    colors: {
+      primary: '#82AAFF',
+      secondary: '#7fdbca',
+      accent: '#c792ea',
+      muted: '#5f7e97',
+      userMessage: '#ecc48d',
+      assistantMessage: '#d6deeb',
+      systemMessage: '#82AAFF',
+      errorMessage: '#EF5350',
+      border: '#5f7e97',
+      inputBorder: '#82AAFF',
+      statusBar: '#82AAFF',
+      highlight: '#c792ea',
+      toolChip: '#0b253a',
+      toolChipActive: '#82AAFF',
+      thinkingChip: '#ecc48d',
+      kittColor: '#82AAFF',
+      kittBracket: '#7fdbca',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#c5e478',
+      warning: '#ecc48d',
+      error: '#EF5350',
+      info: '#82AAFF',
+      separator: '#5f7e97',
+    },
+  },
+  {
+    name: 'Nord',
+    description: 'Nord',
+    colors: {
+      primary: '#88C0D0',
+      secondary: '#81A1C1',
+      accent: '#8FBCBB',
+      muted: '#8B95A7',
+      userMessage: '#D08770',
+      assistantMessage: '#ECEFF4',
+      systemMessage: '#88C0D0',
+      errorMessage: '#BF616A',
+      border: '#434C5E',
+      inputBorder: '#4C566A',
+      statusBar: '#88C0D0',
+      highlight: '#8FBCBB',
+      toolChip: '#434C5E',
+      toolChipActive: '#88C0D0',
+      thinkingChip: '#D08770',
+      kittColor: '#88C0D0',
+      kittBracket: '#81A1C1',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#A3BE8C',
+      warning: '#D08770',
+      error: '#BF616A',
+      info: '#88C0D0',
+      separator: '#434C5E',
+    },
+  },
+  {
+    name: 'Obsidian Depths',
+    description: 'Obsidian Depths',
+    colors: {
+      primary: '#58a6ff',
+      secondary: '#bc8cff',
+      accent: '#56d4dd',
+      muted: '#8b949e',
+      userMessage: '#ffa657',
+      assistantMessage: '#c9d1d9',
+      systemMessage: '#58a6ff',
+      errorMessage: '#ff7b72',
+      border: '#30363d',
+      inputBorder: '#58a6ff',
+      statusBar: '#58a6ff',
+      highlight: '#56d4dd',
+      toolChip: '#1c2128',
+      toolChipActive: '#58a6ff',
+      thinkingChip: '#ffa657',
+      kittColor: '#58a6ff',
+      kittBracket: '#bc8cff',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#7ee787',
+      warning: '#ffa657',
+      error: '#ff7b72',
+      info: '#58a6ff',
+      separator: '#30363d',
+    },
+  },
+  {
+    name: 'One Dark',
+    description: 'One Dark',
+    colors: {
+      primary: '#61afef',
+      secondary: '#c678dd',
+      accent: '#56b6c2',
+      muted: '#5c6370',
+      userMessage: '#e5c07b',
+      assistantMessage: '#abb2bf',
+      systemMessage: '#61afef',
+      errorMessage: '#e06c75',
+      border: '#393f4a',
+      inputBorder: '#61afef',
+      statusBar: '#61afef',
+      highlight: '#56b6c2',
+      toolChip: '#353b45',
+      toolChipActive: '#61afef',
+      thinkingChip: '#e5c07b',
+      kittColor: '#61afef',
+      kittBracket: '#c678dd',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#98c379',
+      warning: '#e5c07b',
+      error: '#e06c75',
+      info: '#d19a66',
+      separator: '#393f4a',
+    },
+  },
+  {
+    name: 'Opencode',
+    description: 'Opencode',
+    colors: {
+      primary: '#fab283',
+      secondary: '#5c9cf5',
+      accent: '#f5a742',
+      muted: '#808080',
+      userMessage: '#f5a742',
+      assistantMessage: '#eeeeee',
+      systemMessage: '#fab283',
+      errorMessage: '#e06c75',
+      border: '#484848',
+      inputBorder: '#606060',
+      statusBar: '#fab283',
+      highlight: '#f5a742',
+      toolChip: '#1e1e1e',
+      toolChipActive: '#fab283',
+      thinkingChip: '#f5a742',
+      kittColor: '#fab283',
+      kittBracket: '#5c9cf5',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#7fd88f',
+      warning: '#f5a742',
+      error: '#e06c75',
+      info: '#56b6c2',
+      separator: '#484848',
+    },
+  },
+  {
+    name: 'Orng',
+    description: 'Orng',
+    colors: {
+      primary: '#EC5B2B',
+      secondary: '#EE7948',
+      accent: '#FFF7F1',
+      muted: '#808080',
+      userMessage: '#EC5B2B',
+      assistantMessage: '#eeeeee',
+      systemMessage: '#EC5B2B',
+      errorMessage: '#e06c75',
+      border: '#EC5B2B',
+      inputBorder: '#EE7948',
+      statusBar: '#EC5B2B',
+      highlight: '#FFF7F1',
+      toolChip: '#1e1e1e',
+      toolChipActive: '#EC5B2B',
+      thinkingChip: '#EC5B2B',
+      kittColor: '#EC5B2B',
+      kittBracket: '#EE7948',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#6ba1e6',
+      warning: '#EC5B2B',
+      error: '#e06c75',
+      info: '#56b6c2',
+      separator: '#EC5B2B',
+    },
+  },
+  {
+    name: 'Palenight',
+    description: 'Palenight',
+    colors: {
+      primary: '#82aaff',
+      secondary: '#c792ea',
+      accent: '#89ddff',
+      muted: '#676e95',
+      userMessage: '#ffcb6b',
+      assistantMessage: '#a6accd',
+      systemMessage: '#82aaff',
+      errorMessage: '#f07178',
+      border: '#32364a',
+      inputBorder: '#82aaff',
+      statusBar: '#82aaff',
+      highlight: '#89ddff',
+      toolChip: '#32364a',
+      toolChipActive: '#82aaff',
+      thinkingChip: '#ffcb6b',
+      kittColor: '#82aaff',
+      kittBracket: '#c792ea',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#c3e88d',
+      warning: '#ffcb6b',
+      error: '#f07178',
+      info: '#f78c6c',
+      separator: '#32364a',
+    },
+  },
+  {
+    name: 'Phantom Code',
+    description: 'Phantom Code',
+    colors: {
+      primary: '#818cf8',
+      secondary: '#a78bfa',
+      accent: '#c084fc',
+      muted: '#8b8ea1',
+      userMessage: '#fbbf24',
+      assistantMessage: '#d9dce6',
+      systemMessage: '#818cf8',
+      errorMessage: '#fb7185',
+      border: '#2d2f3e',
+      inputBorder: '#c084fc',
+      statusBar: '#818cf8',
+      highlight: '#c084fc',
+      toolChip: '#23242f',
+      toolChipActive: '#818cf8',
+      thinkingChip: '#fbbf24',
+      kittColor: '#818cf8',
+      kittBracket: '#a78bfa',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#86efac',
+      warning: '#fbbf24',
+      error: '#fb7185',
+      info: '#67e8f9',
+      separator: '#2d2f3e',
+    },
+  },
+  {
+    name: 'Quantum Shift',
+    description: 'Quantum Shift',
+    colors: {
+      primary: '#61afef',
+      secondary: '#bb9af7',
+      accent: '#7dcfff',
+      muted: '#8a90b0',
+      userMessage: '#e0af68',
+      assistantMessage: '#dfe3f0',
+      systemMessage: '#61afef',
+      errorMessage: '#f7768e',
+      border: '#2a2d3e',
+      inputBorder: '#7dcfff',
+      statusBar: '#61afef',
+      highlight: '#7dcfff',
+      toolChip: '#1e202f',
+      toolChipActive: '#61afef',
+      thinkingChip: '#e0af68',
+      kittColor: '#61afef',
+      kittBracket: '#bb9af7',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#9ece6a',
+      warning: '#e0af68',
+      error: '#f7768e',
+      info: '#61afef',
+      separator: '#2a2d3e',
+    },
+  },
+  {
+    name: 'Rosepine',
+    description: 'Rosepine',
+    colors: {
+      primary: '#9ccfd8',
+      secondary: '#c4a7e7',
+      accent: '#ebbcba',
+      muted: '#6e6a86',
+      userMessage: '#f6c177',
+      assistantMessage: '#e0def4',
+      systemMessage: '#9ccfd8',
+      errorMessage: '#eb6f92',
+      border: '#403d52',
+      inputBorder: '#9ccfd8',
+      statusBar: '#9ccfd8',
+      highlight: '#ebbcba',
+      toolChip: '#26233a',
+      toolChipActive: '#9ccfd8',
+      thinkingChip: '#f6c177',
+      kittColor: '#9ccfd8',
+      kittBracket: '#c4a7e7',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#31748f',
+      warning: '#f6c177',
+      error: '#eb6f92',
+      info: '#9ccfd8',
+      separator: '#403d52',
+    },
+  },
+  {
+    name: 'Slate Noir',
+    description: 'Slate Noir',
+    colors: {
+      primary: '#a1a1b3',
+      secondary: '#77778a',
+      accent: '#f4f4f7',
+      muted: '#8c8c92',
+      userMessage: '#a1a1b3',
+      assistantMessage: '#e4e4e7',
+      systemMessage: '#a1a1b3',
+      errorMessage: '#c9c9d6',
+      border: '#34343d',
+      inputBorder: '#a1a1b3',
+      statusBar: '#a1a1b3',
+      highlight: '#f4f4f7',
+      toolChip: '#1a1a1e',
+      toolChipActive: '#a1a1b3',
+      thinkingChip: '#a1a1b3',
+      kittColor: '#a1a1b3',
+      kittBracket: '#77778a',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#77778a',
+      warning: '#a1a1b3',
+      error: '#c9c9d6',
+      info: '#a1a1b3',
+      separator: '#34343d',
+    },
+  },
+  {
+    name: 'Solarized',
+    description: 'Solarized',
+    colors: {
+      primary: '#268bd2',
+      secondary: '#6c71c4',
+      accent: '#2aa198',
+      muted: '#586e75',
+      userMessage: '#b58900',
+      assistantMessage: '#839496',
+      systemMessage: '#268bd2',
+      errorMessage: '#dc322f',
+      border: '#073642',
+      inputBorder: '#586e75',
+      statusBar: '#268bd2',
+      highlight: '#2aa198',
+      toolChip: '#073642',
+      toolChipActive: '#268bd2',
+      thinkingChip: '#b58900',
+      kittColor: '#268bd2',
+      kittBracket: '#6c71c4',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#859900',
+      warning: '#b58900',
+      error: '#dc322f',
+      info: '#cb4b16',
+      separator: '#073642',
+    },
+  },
+  {
+    name: 'Sunset Code',
+    description: 'Sunset Code',
+    colors: {
+      primary: '#ff9e64',
+      secondary: '#c792ea',
+      accent: '#ff6e9c',
+      muted: '#b89fa0',
+      userMessage: '#ffc777',
+      assistantMessage: '#f4e5d9',
+      systemMessage: '#ff9e64',
+      errorMessage: '#ff8a80',
+      border: '#3d3240',
+      inputBorder: '#ff6e9c',
+      statusBar: '#ff9e64',
+      highlight: '#ff6e9c',
+      toolChip: '#322837',
+      toolChipActive: '#ff9e64',
+      thinkingChip: '#ffc777',
+      kittColor: '#ff9e64',
+      kittBracket: '#c792ea',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#90cfa0',
+      warning: '#ffc777',
+      error: '#ff8a80',
+      info: '#baacff',
+      separator: '#3d3240',
+    },
+  },
+  {
+    name: 'Synthwave84',
+    description: 'Synthwave84',
+    colors: {
+      primary: '#36f9f6',
+      secondary: '#ff7edb',
+      accent: '#b084eb',
+      muted: '#848bbd',
+      userMessage: '#fede5d',
+      assistantMessage: '#ffffff',
+      systemMessage: '#36f9f6',
+      errorMessage: '#fe4450',
+      border: '#495495',
+      inputBorder: '#36f9f6',
+      statusBar: '#36f9f6',
+      highlight: '#b084eb',
+      toolChip: '#2a2139',
+      toolChipActive: '#36f9f6',
+      thinkingChip: '#fede5d',
+      kittColor: '#36f9f6',
+      kittBracket: '#ff7edb',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#72f1b8',
+      warning: '#fede5d',
+      error: '#fe4450',
+      info: '#ff8b39',
+      separator: '#495495',
+    },
+  },
+  {
+    name: 'Tokyonight',
+    description: 'Tokyonight',
+    colors: {
+      primary: '#82aaff',
+      secondary: '#c099ff',
+      accent: '#ff966c',
+      muted: '#828bb8',
+      userMessage: '#ff966c',
+      assistantMessage: '#c8d3f5',
+      systemMessage: '#82aaff',
+      errorMessage: '#ff757f',
+      border: '#737aa2',
+      inputBorder: '#9099b2',
+      statusBar: '#82aaff',
+      highlight: '#ff966c',
+      toolChip: '#222436',
+      toolChipActive: '#82aaff',
+      thinkingChip: '#ff966c',
+      kittColor: '#82aaff',
+      kittBracket: '#c099ff',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#c3e88d',
+      warning: '#ff966c',
+      error: '#ff757f',
+      info: '#82aaff',
+      separator: '#737aa2',
+    },
+  },
+  {
+    name: 'Vercel',
+    description: 'Vercel',
+    colors: {
+      primary: '#0070F3',
+      secondary: '#52A8FF',
+      accent: '#8E4EC6',
+      muted: '#878787',
+      userMessage: '#FFB224',
+      assistantMessage: '#EDEDED',
+      systemMessage: '#0070F3',
+      errorMessage: '#E5484D',
+      border: '#1F1F1F',
+      inputBorder: '#454545',
+      statusBar: '#0070F3',
+      highlight: '#8E4EC6',
+      toolChip: '#292929',
+      toolChipActive: '#0070F3',
+      thinkingChip: '#FFB224',
+      kittColor: '#0070F3',
+      kittBracket: '#52A8FF',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#46A758',
+      warning: '#FFB224',
+      error: '#E5484D',
+      info: '#52A8FF',
+      separator: '#1F1F1F',
+    },
+  },
+  {
+    name: 'Vesper',
+    description: 'Vesper',
+    colors: {
+      primary: '#FFC799',
+      secondary: '#99FFE4',
+      accent: '#FFC799',
+      muted: '#A0A0A0',
+      userMessage: '#FFC799',
+      assistantMessage: '#FFFFFF',
+      systemMessage: '#FFC799',
+      errorMessage: '#FF8080',
+      border: '#282828',
+      inputBorder: '#FFC799',
+      statusBar: '#FFC799',
+      highlight: '#FFC799',
+      toolChip: '#101010',
+      toolChipActive: '#FFC799',
+      thinkingChip: '#FFC799',
+      kittColor: '#FFC799',
+      kittBracket: '#99FFE4',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#99FFE4',
+      warning: '#FFC799',
+      error: '#FF8080',
+      info: '#FFC799',
+      separator: '#282828',
+    },
+  },
+  {
+    name: 'Void Runner',
+    description: 'Void Runner',
+    colors: {
+      primary: '#82aaff',
+      secondary: '#c792ea',
+      accent: '#89ddff',
+      muted: '#9090b0',
+      userMessage: '#ffcb6b',
+      assistantMessage: '#e6e6fa',
+      systemMessage: '#82aaff',
+      errorMessage: '#ff5370',
+      border: '#1a1a30',
+      inputBorder: '#89ddff',
+      statusBar: '#82aaff',
+      highlight: '#89ddff',
+      toolChip: '#101020',
+      toolChipActive: '#82aaff',
+      thinkingChip: '#ffcb6b',
+      kittColor: '#82aaff',
+      kittBracket: '#c792ea',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#c3e88d',
+      warning: '#ffcb6b',
+      error: '#ff5370',
+      info: '#89ddff',
+      separator: '#1a1a30',
+    },
+  },
+  {
+    name: 'Zenburn',
+    description: 'Zenburn',
+    colors: {
+      primary: '#8cd0d3',
+      secondary: '#dc8cc3',
+      accent: '#93e0e3',
+      muted: '#9f9f9f',
+      userMessage: '#f0dfaf',
+      assistantMessage: '#dcdccc',
+      systemMessage: '#8cd0d3',
+      errorMessage: '#cc9393',
+      border: '#5f5f5f',
+      inputBorder: '#8cd0d3',
+      statusBar: '#8cd0d3',
+      highlight: '#93e0e3',
+      toolChip: '#5f5f5f',
+      toolChipActive: '#8cd0d3',
+      thinkingChip: '#f0dfaf',
+      kittColor: '#8cd0d3',
+      kittBracket: '#dc8cc3',
+      kittLit: '█',
+      kittDim: '▓',
+      kittFaint: '░',
+      kittOff: '·',
+      success: '#7f9f7f',
+      warning: '#f0dfaf',
+      error: '#cc9393',
+      info: '#dfaf8f',
+      separator: '#5f5f5f',
+    },
+  },
+];
+
+// Get initial theme from saved preference or default to first theme
+function getInitialTheme(): Theme {
+  const savedName = loadSavedThemeName();
+  if (savedName) {
+    const found = DEFAULT_THEMES.find((t) => t.name === savedName);
+    if (found) return found;
+  }
+  return DEFAULT_THEMES[0];
+}
+
 interface AppState {
   messages: Message[];
   isResponding: boolean;
@@ -364,6 +2306,14 @@ interface AppState {
   subAgents: SubAgent[];
   subAgentsSectionExpanded: boolean;
   expandedAgentIds: Set<string>;
+  expandedChipId: string | null; // Single expanded chip (mutual exclusivity)
+  // Theme state
+  currentTheme: Theme;
+  showThemePicker: boolean;
+  selectedThemeIndex: number;
+  // Status bar popup state (mutually exclusive)
+  activeStatusPopup: 'model' | 'mode' | 'context' | 'lsp' | 'idx' | 'patchModel' | null;
+  selectedPopupIndex: number; // For keyboard navigation in popups
 }
 
 /**
@@ -439,8 +2389,8 @@ function formatThinkingChip(session: ThinkingSession, animate: boolean, animFram
     const frame = brailleFrames[animFrame % brailleFrames.length];
     return elapsed < 1 ? `${frame} thinking` : `${frame} ${elapsed.toFixed(0)}s`;
   } else {
-    // Completed: show duration
-    return `Thought ${elapsed.toFixed(0)}s`;
+    // Completed: show brain icon + duration
+    return `🧠 ${elapsed.toFixed(0)}s`;
   }
 }
 
@@ -561,7 +2511,8 @@ function getCommandCompletions(prefix: string): string[] {
     '/diagnose',
     '/apply',
     '/patch-model',
-    '/toggle-grey-tools'
+    '/toggle-grey-tools',
+    '/theme'
   ];
 
   return commands.filter((cmd) => cmd.startsWith(prefix));
@@ -750,7 +2701,7 @@ const SubAgentTaskBox: React.FC<{
       marginLeft: 2,
       marginBottom: 1
     }}
-    onClick={onToggle}
+    onMouseUp={onToggle}
   >
     {/* Header - always visible */}
     <box style={{ flexDirection: 'row', paddingLeft: 1, paddingRight: 1 }}>
@@ -808,7 +2759,7 @@ const CollapsibleSubAgentsSection: React.FC<{
       {/* Section header - always visible */}
       <box
         style={{ flexDirection: 'row', paddingLeft: 1 }}
-        onClick={onToggleSection}
+        onMouseUp={onToggleSection}
       >
         <text content={isExpanded ? '[-]' : '[+]'} fg="magenta" bold />
         <text content=" Background Agents " fg="magenta" bold />
@@ -847,16 +2798,52 @@ const CollapsibleSubAgentsSection: React.FC<{
   );
 };
 
+/**
+ * Generate startup banner with model, path, and account info
+ */
+function generateStartupBanner(
+  modelPreference: string,
+  workingDir: string,
+  authType: 'oauth' | 'api-key',
+  sessionId?: string
+): string {
+  const modelDisplay = getModelDisplayFromPreference(modelPreference);
+  const accountType = authType === 'oauth' ? 'Claude Max' : 'API Key';
+  const shortPath = workingDir.replace(os.homedir(), '~');
+
+  // Get username from environment
+  const username = process.env.USER || process.env.USERNAME || 'User';
+
+  const lines = [
+    `╭${'─'.repeat(60)}╮`,
+    `│${' '.repeat(60)}│`,
+    `│  Welcome back ${username}!${' '.repeat(Math.max(0, 44 - username.length))}│`,
+    `│${' '.repeat(60)}│`,
+    `│  ${modelDisplay}${' '.repeat(Math.max(0, 58 - modelDisplay.length))}│`,
+    `│  ${accountType}${' '.repeat(Math.max(0, 58 - accountType.length))}│`,
+    `│  ${shortPath}${' '.repeat(Math.max(0, 58 - shortPath.length))}│`,
+    `│${' '.repeat(60)}│`,
+    `╰${'─'.repeat(60)}╯`
+  ];
+
+  return lines.join('\n');
+}
+
 const ChatApp: React.FC<{
   apiKey?: string;
   oauthToken?: string;
   resumeSession?: SessionData;
-}> = ({ apiKey, oauthToken, resumeSession }) => {
+  authType?: 'oauth' | 'api-key';
+}> = ({ apiKey, oauthToken, resumeSession, authType = 'api-key' }) => {
   // Track render timing
   renderCount++;
   if (renderCount <= 10 || renderCount % 10 === 0) {
     debugLog(`ChatApp render #${renderCount}`);
   }
+
+  // Generate the startup banner
+  const modelPref = resumeSession?.model || 'fast';
+  const startupBanner = generateStartupBanner(modelPref, process.cwd(), authType, resumeSession?.sessionId);
 
   // Convert stored messages to Message format if resuming
   const initialMessages: Message[] =
@@ -869,7 +2856,13 @@ const ChatApp: React.FC<{
         },
         {
           role: 'system' as const,
-          content: `[*] Claudelet OpenTUI - Claude Agent Chat\n\nCommands: /help /init /quit /done /stop /model /sessions /logout\nFile refs: @path/to/file.ts → Tab to add as chip\n\n[↻] Resuming session ${resumeSession.sessionId.slice(0, 8)}...`,
+          content: startupBanner,
+          timestamp: new Date(),
+          isBanner: true
+        },
+        {
+          role: 'system' as const,
+          content: `[↻] Resuming session ${resumeSession.sessionId.slice(0, 8)}... (${resumeSession.messages.length} messages)`,
           timestamp: new Date()
         },
         ...resumeSession.messages.map((m) => ({
@@ -890,8 +2883,13 @@ const ChatApp: React.FC<{
         },
         {
           role: 'system' as const,
-          content:
-            '[*] Claudelet OpenTUI - Claude Agent Chat\n\nCommands: /help /init /quit /done /stop /model /sessions /logout\nFile refs: @path/to/file.ts → Tab to add as chip\n\nTab: autocomplete | ↑↓: history | Shift+Enter: newline | Ctrl+E: expand tool | Ctrl+M: models | Ctrl+Shift+P: providers | Ctrl+P/N: scroll | Ctrl+S: status | Ctrl+T: tasks | Shift+Tab: toggle mode',
+          content: startupBanner,
+          timestamp: new Date(),
+          isBanner: true
+        },
+        {
+          role: 'system' as const,
+          content: 'Keyboard: Tab autocomplete | ↑↓ history | Shift+Enter newline | Ctrl+E expand | Ctrl+M models\nCommands: /help /model /sessions /quit',
           timestamp: new Date()
         }
       ];
@@ -918,7 +2916,15 @@ const ChatApp: React.FC<{
     orchestration: undefined,
     subAgents: [],
     subAgentsSectionExpanded: false,
-    expandedAgentIds: new Set()
+    expandedAgentIds: new Set(),
+    expandedChipId: null,
+    // Theme state
+    currentTheme: getInitialTheme(),
+    showThemePicker: false,
+    selectedThemeIndex: DEFAULT_THEMES.findIndex((t) => t.name === getInitialTheme().name),
+    // Status bar popup state
+    activeStatusPopup: null,
+    selectedPopupIndex: 0
   });
 
   // Initialize session data ref if resuming
@@ -933,6 +2939,9 @@ const ChatApp: React.FC<{
 
   // Smart message queue
   const messageQueueRef = useRef<SmartMessageQueue>(new SmartMessageQueue(30_000, TODOS_FILE));
+
+  // Buffer for accumulating streamed tool input JSON
+  const toolInputBuffersRef = useRef<Map<string, string>>(new Map());
 
   // Auto-save helper function
   const autoSaveSession = useCallback(async () => {
@@ -992,13 +3001,22 @@ const ChatApp: React.FC<{
   const [selectedModelIndex, setSelectedModelIndex] = useState(0);
   const [showProviderDialog, setShowProviderDialog] = useState(false);
   const [selectedProviderIndex, setSelectedProviderIndex] = useState(0);
-  const hasSeenReturnRef = useRef(false);
+
+  // KITT animation state (Knight Rider style moving light)
+  const [kittPosition, setKittPosition] = useState(0);
+  const [kittDirection, setKittDirection] = useState<'right' | 'left'>('right');
+  const kittWidth = 8; // Width of the KITT animation bar
+  // Preview theme for live preview while scrolling through themes
+  const [previewTheme, setPreviewTheme] = useState<Theme | null>(null);
+  // Active theme is either the preview (while browsing) or the selected theme
+  const activeTheme = previewTheme || state.currentTheme;
 
   // Available models and providers
   const models = [
-    { id: 'fast', name: 'Haiku (Default)', display: 'fast' },
+    { id: 'fast', name: 'Haiku (Fast)', display: 'fast' },
     { id: 'smart-sonnet', name: 'Sonnet (Smart)', display: 'smart-sonnet' },
-    { id: 'smart-opus', name: 'Opus (Advanced)', display: 'smart-opus' }
+    { id: 'smart-opus', name: 'Opus (Advanced)', display: 'smart-opus' },
+    { id: 'auto', name: 'Auto (Orchestrated)', display: 'auto' }
   ];
 
   const providers = [
@@ -1012,6 +3030,41 @@ const ChatApp: React.FC<{
     debugLog('ChatApp: Component mounted');
     return () => debugLog('ChatApp: Component unmounting');
   }, []);
+
+  // KITT animation effect - runs when there's activity
+  const isActivityHappening = state.isResponding ||
+    state.thinkingSessions.some(s => !s.endTime) ||
+    !!state.currentTool;
+
+  useEffect(() => {
+    if (!isActivityHappening) {
+      // Reset position when no activity
+      setKittPosition(0);
+      setKittDirection('right');
+      return;
+    }
+
+    // Animate the KITT position
+    const interval = setInterval(() => {
+      setKittPosition(prev => {
+        if (kittDirection === 'right') {
+          if (prev >= kittWidth - 1) {
+            setKittDirection('left');
+            return prev - 1;
+          }
+          return prev + 1;
+        } else {
+          if (prev <= 0) {
+            setKittDirection('right');
+            return prev + 1;
+          }
+          return prev - 1;
+        }
+      });
+    }, 80); // 80ms interval for smooth animation
+
+    return () => clearInterval(interval);
+  }, [isActivityHappening, kittDirection, kittWidth]);
 
   // Initialize AI Tools Service and listeners (non-blocking background init)
   // Set SKIP_AI_TOOLS=1 to bypass AI Tools for input delay debugging
@@ -1307,6 +3360,9 @@ You cannot invoke these slash commands yourself directly via tool calls; they mu
                   toolMessages: []
                 };
 
+                // Initialize input buffer for this tool
+                toolInputBuffersRef.current.set(tool.id, '');
+
                 return {
                   currentTool: tool.name,
                   currentToolId: tool.id,
@@ -1315,6 +3371,36 @@ You cannot invoke these slash commands yourself directly via tool calls; they mu
                 };
               });
             },
+
+            onToolInputDelta: (data: { index: number; toolId: string; delta: string }) => {
+              // Accumulate the streamed JSON input
+              const current = toolInputBuffersRef.current.get(data.toolId) || '';
+              toolInputBuffersRef.current.set(data.toolId, current + data.delta);
+            },
+
+            onContentBlockStop: (data: { index: number; toolId?: string }) => {
+              if (data.toolId) {
+                const jsonStr = toolInputBuffersRef.current.get(data.toolId);
+                if (jsonStr) {
+                  try {
+                    const parsedInput = JSON.parse(jsonStr);
+                    // Update the tool message with the complete input
+                    updateState((prev) => ({
+                      messages: prev.messages.map((msg) =>
+                        msg.toolId === data.toolId
+                          ? { ...msg, toolInput: parsedInput }
+                          : msg
+                      )
+                    }));
+                  } catch {
+                    debugLog(`Failed to parse tool input JSON for ${data.toolId}`);
+                  }
+                  // Clean up buffer
+                  toolInputBuffersRef.current.delete(data.toolId);
+                }
+              }
+            },
+
             onToolResultStart: (result: {
               toolUseId: string;
               content: string;
@@ -1668,7 +3754,8 @@ You cannot invoke these slash commands yourself directly via tool calls; they mu
 /quit, /exit    - Exit chat
 /done           - Mark session as complete and exit
 /stop           - Interrupt response
-/model <name>   - Switch model (fast/haiku/sonnet/opus)
+/model <name>   - Switch model (auto/fast/haiku/sonnet/opus)
+/theme          - Open theme picker
 /sessions       - List saved sessions
 /logout         - Clear authentication
 /toggle-grey-tools - Toggle greying out finished tools
@@ -1677,6 +3764,9 @@ You cannot invoke these slash commands yourself directly via tool calls; they mu
 /search <query> - Semantic code search (MGrep)
 /diagnose <file>- Get LSP diagnostics for file
 /apply <patch>  - Apply code patch (FastApply)
+
+[!] Bash Mode:
+!<command>      - Execute shell command (e.g., !ls -la, !git status)
 
 [@] Model Override:
 @opus <msg>     - Use Opus for this message
@@ -2118,7 +4208,9 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
       // Handle /model
       if (displayText.startsWith('/model ')) {
         const modelArg = displayText.slice(7).trim();
-        const modelMap: Record<string, 'fast' | 'smart-sonnet' | 'smart-opus'> = {
+        const modelMap: Record<string, 'auto' | 'fast' | 'smart-sonnet' | 'smart-opus'> = {
+          auto: 'auto',
+          orchestrated: 'auto',
           fast: 'fast',
           haiku: 'fast',
           sonnet: 'smart-sonnet',
@@ -2153,9 +4245,95 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
               ...prev.messages,
               {
                 role: 'system',
-                content: '[i] Unknown model. Use: fast, haiku, sonnet, or opus',
+                content: '[i] Unknown model. Use: auto, fast, haiku, sonnet, or opus',
                 timestamp: new Date()
               }
+            ]
+          }));
+        }
+        return;
+      }
+
+      // Handle /theme command
+      if (displayText === '/theme') {
+        updateState((prev) => ({
+          showThemePicker: true,
+          messages: [
+            ...prev.messages,
+            { role: 'system', content: '[*] Opening theme picker... Use ↑↓ to select, Enter to apply, Esc to cancel', timestamp: new Date() }
+          ]
+        }));
+        return;
+      }
+
+      // Handle /theme <name> direct switch
+      if (displayText.startsWith('/theme ')) {
+        const themeName = displayText.slice(7).trim().toLowerCase();
+        const themeIndex = DEFAULT_THEMES.findIndex((t) => t.name.toLowerCase() === themeName);
+        if (themeIndex !== -1) {
+          saveThemeName(DEFAULT_THEMES[themeIndex].name); // Persist theme choice
+          updateState((prev) => ({
+            currentTheme: DEFAULT_THEMES[themeIndex],
+            selectedThemeIndex: themeIndex,
+            messages: [
+              ...prev.messages,
+              { role: 'system', content: `[+] Switched to "${DEFAULT_THEMES[themeIndex].name}" theme`, timestamp: new Date() }
+            ]
+          }));
+        } else {
+          const available = DEFAULT_THEMES.map((t) => t.name).join(', ');
+          updateState((prev) => ({
+            messages: [
+              ...prev.messages,
+              { role: 'system', content: `[i] Unknown theme. Available: ${available}`, timestamp: new Date() }
+            ]
+          }));
+        }
+        return;
+      }
+
+      // Handle ! bash mode - execute shell commands directly
+      if (displayText.startsWith('!')) {
+        const bashCmd = displayText.slice(1).trim();
+        if (!bashCmd) {
+          updateState((prev) => ({
+            messages: [
+              ...prev.messages,
+              { role: 'system', content: '[i] Usage: !<command> (e.g., !ls -la, !git status)', timestamp: new Date() }
+            ]
+          }));
+          return;
+        }
+
+        // Show command being executed
+        updateState((prev) => ({
+          messages: [
+            ...prev.messages,
+            { role: 'user', content: `$ ${bashCmd}`, timestamp: new Date() }
+          ]
+        }));
+
+        try {
+          const { execSync } = await import('child_process');
+          const output = execSync(bashCmd, {
+            cwd: process.cwd(),
+            encoding: 'utf-8',
+            timeout: 30000,
+            maxBuffer: 1024 * 1024 * 10 // 10MB
+          });
+          updateState((prev) => ({
+            messages: [
+              ...prev.messages,
+              { role: 'system', content: output || '[done]', timestamp: new Date() }
+            ]
+          }));
+        } catch (err: unknown) {
+          const error = err as { stdout?: string; stderr?: string; message?: string };
+          const errorOutput = error.stderr || error.stdout || error.message || 'Command failed';
+          updateState((prev) => ({
+            messages: [
+              ...prev.messages,
+              { role: 'system', content: `[x] ${errorOutput}`, timestamp: new Date() }
             ]
           }));
         }
@@ -2287,6 +4465,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
         // First press with input - clear the input line
         debugLog('Ctrl+C pressed, clearing input');
         setInputSegments([{ type: 'text', text: '' }]);
+        setCursorPosition(0);
         setCtrlCPressedOnce(true);
         setShowQuitWarning(true);
       } else if (ctrlCPressedOnce) {
@@ -2463,6 +4642,87 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
     if (key.name === 'escape') {
       setShowModelDialog(false);
       setShowProviderDialog(false);
+      setPreviewTheme(null); // Clear preview on escape
+      updateState({ showThemePicker: false, activeStatusPopup: null });
+      return;
+    }
+
+    // Handle Theme Picker navigation with live preview
+    if (state.showThemePicker && (key.name === 'up' || key.name === 'down')) {
+      const newIndex = key.name === 'up'
+        ? (state.selectedThemeIndex - 1 + DEFAULT_THEMES.length) % DEFAULT_THEMES.length
+        : (state.selectedThemeIndex + 1) % DEFAULT_THEMES.length;
+      setPreviewTheme(DEFAULT_THEMES[newIndex]); // Live preview
+      updateState({ selectedThemeIndex: newIndex });
+      return;
+    }
+
+    // Handle Theme Picker selection
+    if (state.showThemePicker && (key.name === 'return' || key.name === 'space')) {
+      const selectedTheme = DEFAULT_THEMES[state.selectedThemeIndex];
+      setPreviewTheme(null); // Clear preview
+      saveThemeName(selectedTheme.name); // Persist theme choice
+      updateState({
+        currentTheme: selectedTheme,
+        showThemePicker: false
+      });
+      return;
+    }
+
+    // Handle Status Bar Popup navigation (up/down)
+    if (state.activeStatusPopup && (key.name === 'up' || key.name === 'down')) {
+      const popupType = state.activeStatusPopup;
+      let maxIndex = 0;
+
+      if (popupType === 'model') maxIndex = models.length - 1;
+      else if (popupType === 'mode') maxIndex = 1; // coding, planning
+
+      if (key.name === 'up') {
+        updateState((prev) => ({
+          selectedPopupIndex: (prev.selectedPopupIndex - 1 + maxIndex + 1) % (maxIndex + 1)
+        }));
+      } else {
+        updateState((prev) => ({
+          selectedPopupIndex: (prev.selectedPopupIndex + 1) % (maxIndex + 1)
+        }));
+      }
+      return;
+    }
+
+    // Handle Status Bar Popup selection (Enter/Space)
+    if (state.activeStatusPopup && (key.name === 'return' || key.name === 'space')) {
+      const popupType = state.activeStatusPopup;
+
+      if (popupType === 'model') {
+        updateState((prev) => ({
+          currentModel: models[prev.selectedPopupIndex].display,
+          activeStatusPopup: null
+        }));
+      } else if (popupType === 'mode') {
+        const modes: Array<'coding' | 'planning'> = ['coding', 'planning'];
+        updateState((prev) => ({
+          agentMode: modes[prev.selectedPopupIndex],
+          activeStatusPopup: null
+        }));
+      } else {
+        // Close other popups on Enter
+        updateState({ activeStatusPopup: null });
+      }
+      return;
+    }
+
+    // Page Up/Down for message scrolling
+    if (key.name === 'pageup') {
+      updateState((prev) => ({
+        messageScrollOffset: Math.max(0, prev.messageScrollOffset - 10)
+      }));
+      return;
+    }
+    if (key.name === 'pagedown') {
+      const maxOffset = Math.max(0, state.messages.length - 5);
+      updateState((prev) => ({
+        messageScrollOffset: Math.min(maxOffset, prev.messageScrollOffset + 10)
+      }));
       return;
     }
 
@@ -2622,33 +4882,38 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
       setInputSegments((prev) => {
         const lastSegment = prev[prev.length - 1];
         if (!lastSegment || lastSegment.type !== 'text') {
+          setCursorPosition(1);
           return [...prev, { type: 'text', text: '\n' }];
         }
-        return [...prev.slice(0, -1), { type: 'text', text: lastSegment.text + '\n' }];
+        // Insert newline at cursor position
+        const text = lastSegment.text;
+        const newText = text.slice(0, cursorPosition) + '\n' + text.slice(cursorPosition);
+        setCursorPosition((p) => p + 1);
+        return [...prev.slice(0, -1), { type: 'text', text: newText }];
       });
       return;
     }
 
-    // Track whether this terminal uses CR ("return") for Enter.
-    if (key.name === 'return') {
-      hasSeenReturnRef.current = true;
-    }
-
-    // If the terminal sends LF ("linefeed") via a keybind (e.g. Ghostty `text:\n`),
-    // treat LF as newline once we've observed that normal Enter arrives as CR.
-    if (key.name === 'linefeed' && !key.shift && hasSeenReturnRef.current) {
+    // If the terminal sends LF ("linefeed") via a keybind (e.g. Ghostty `shift+enter=text:\n`),
+    // always treat it as inserting a newline
+    if (key.name === 'linefeed') {
       setInputSegments((prev) => {
         const lastSegment = prev[prev.length - 1];
         if (!lastSegment || lastSegment.type !== 'text') {
+          setCursorPosition(1);
           return [...prev, { type: 'text', text: '\n' }];
         }
-        return [...prev.slice(0, -1), { type: 'text', text: lastSegment.text + '\n' }];
+        // Insert newline at cursor position
+        const text = lastSegment.text;
+        const newText = text.slice(0, cursorPosition) + '\n' + text.slice(cursorPosition);
+        setCursorPosition((p) => p + 1);
+        return [...prev.slice(0, -1), { type: 'text', text: newText }];
       });
       return;
     }
 
     // Return/Enter to submit (but not Shift+Enter)
-    if ((key.name === 'return' || key.name === 'linefeed' || key.name === 'enter') && !key.shift) {
+    if ((key.name === 'return' || key.name === 'enter') && !key.shift) {
       handleSubmit(inputSegments);
       return;
     }
@@ -2688,6 +4953,34 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
       // Fall through to regular space handling if no pattern matched
     }
 
+    // Left arrow - move cursor left
+    if (key.name === 'left' && !key.ctrl && !key.meta) {
+      setCursorPosition((prev) => Math.max(0, prev - 1));
+      return;
+    }
+
+    // Right arrow - move cursor right
+    if (key.name === 'right' && !key.ctrl && !key.meta) {
+      const lastSegment = inputSegments[inputSegments.length - 1];
+      const maxPos = lastSegment?.type === 'text' ? lastSegment.text.length : 0;
+      setCursorPosition((prev) => Math.min(maxPos, prev + 1));
+      return;
+    }
+
+    // Home - move cursor to start
+    if (key.name === 'home') {
+      setCursorPosition(0);
+      return;
+    }
+
+    // End - move cursor to end
+    if (key.name === 'end') {
+      const lastSegment = inputSegments[inputSegments.length - 1];
+      const maxPos = lastSegment?.type === 'text' ? lastSegment.text.length : 0;
+      setCursorPosition(maxPos);
+      return;
+    }
+
     // Backspace
     if (key.name === 'backspace' || key.name === 'delete') {
       setInputSegments((prev) => {
@@ -2695,31 +4988,40 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
 
         const lastSegment = prev[prev.length - 1];
 
-        // If last segment is a chip, remove it entirely
-        if (lastSegment.type === 'chip') {
-          const remaining = prev.slice(0, -1);
-          return remaining.length === 0 ? [{ type: 'text', text: '' }] : remaining;
+        // If cursor is at position 0, check if we should delete a chip
+        if (cursorPosition === 0) {
+          // If last segment is a chip, remove it entirely
+          if (lastSegment.type === 'chip') {
+            const remaining = prev.slice(0, -1);
+            return remaining.length === 0 ? [{ type: 'text', text: '' }] : remaining;
+          }
+
+          // If last segment is a context chip, remove it and update active chips
+          if (lastSegment.type === 'context') {
+            updateState((prevState) => ({
+              ...prevState,
+              contextChips: prevState.contextChips.filter((c) => c.id !== lastSegment.context.id)
+            }));
+            const remaining = prev.slice(0, -1);
+            return remaining.length === 0 ? [{ type: 'text', text: '' }] : remaining;
+          }
+
+          // At position 0 with text, nothing to delete
+          if (lastSegment.type === 'text' && lastSegment.text.length === 0) {
+            return prev;
+          }
         }
 
-        // If last segment is a context chip, remove it and update active chips
-        if (lastSegment.type === 'context') {
-          updateState((prevState) => ({
-            ...prevState,
-            contextChips: prevState.contextChips.filter((c) => c.id !== lastSegment.context.id)
-          }));
-          const remaining = prev.slice(0, -1);
-          return remaining.length === 0 ? [{ type: 'text', text: '' }] : remaining;
-        }
-
-        // If last segment is text, remove last character
-        if (lastSegment.type === 'text') {
-          const newText = lastSegment.text.slice(0, -1);
+        // If last segment is text, delete at cursor position
+        if (lastSegment.type === 'text' && cursorPosition > 0) {
+          const text = lastSegment.text;
+          const newText = text.slice(0, cursorPosition - 1) + text.slice(cursorPosition);
+          setCursorPosition((p) => Math.max(0, p - 1));
           if (newText === '' && prev.length > 1) {
             // Remove empty text segment
             const remaining = prev.slice(0, -1);
             return remaining;
           }
-          setCursorPosition((prev) => Math.max(0, prev - 1));
           return [...prev.slice(0, -1), { type: 'text', text: newText }];
         }
 
@@ -2749,14 +5051,16 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
           setHistoryIndex(-1);
         }
 
-        // If last segment is text, append to it
+        // If last segment is text, insert at cursor position
         if (lastSegment && lastSegment.type === 'text') {
-          setCursorPosition((prev) => prev + 1);
-          return [...prev.slice(0, -1), { type: 'text', text: lastSegment.text + effectiveChar }];
+          const text = lastSegment.text;
+          const newText = text.slice(0, cursorPosition) + effectiveChar + text.slice(cursorPosition);
+          setCursorPosition((p) => p + 1);
+          return [...prev.slice(0, -1), { type: 'text', text: newText }];
         }
 
         // If last segment is chip, create new text segment
-        setCursorPosition((prev) => prev + 1);
+        setCursorPosition(1);
         return [...prev, { type: 'text', text: effectiveChar }];
       });
     }
@@ -2797,27 +5101,36 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
         rows: process.stdout.rows || 24,
         columns: process.stdout.columns || 80
       });
+      // Force a state update to trigger redraw
+      updateState((prev) => ({ ...prev }));
     };
     process.stdout.on('resize', onResize);
+    // Also handle SIGWINCH directly for better coverage
+    process.on('SIGWINCH', onResize);
     return () => {
       process.stdout.off('resize', onResize);
+      process.off('SIGWINCH', onResize);
     };
-  }, []);
+  }, [updateState]);
 
   // Calculate visible messages (with scroll offset) dynamically based on available lines
   const { visibleMessages, scrollOffset } = useMemo(() => {
     const INPUT_HEIGHT = 3; // Bordered input box
-    const STATUS_HEIGHT = 1;
+    const STATUS_HEIGHT = 2; // Status bar (may wrap)
     const PADDING_HEIGHT = 2; // Top/bottom padding
+    const SAFETY_BUFFER = 2; // Extra buffer to prevent overflow
 
     // Check if tools are visible to reserve space
-    const hasTools = state.messages.some((m) => m.role === 'tool');
-    const TOOL_CHIPS_HEIGHT = hasTools ? 1 : 0; // Tool chips row (conditional)
-    const CONTEXT_CHIPS_HEIGHT = state.contextChips.length > 0 ? 1 : 0; // Context chips row (conditional)
+    const hasThinking = state.thinkingSessions.length > 0;
+    const hasCurrentTool = !!state.currentTool;
+    const hasToolMessages = state.messages.some((m) => m.role === 'tool');
+    const hasChips = hasThinking || hasCurrentTool || hasToolMessages;
+    const TOOL_CHIPS_HEIGHT = hasChips ? 2 : 0; // Tool chips row with border
+    const CONTEXT_CHIPS_HEIGHT = state.contextChips.length > 0 ? 2 : 0; // Context chips row
 
     const AVAILABLE_ROWS = Math.max(
       5,
-      terminalSize.rows - INPUT_HEIGHT - STATUS_HEIGHT - PADDING_HEIGHT - TOOL_CHIPS_HEIGHT - CONTEXT_CHIPS_HEIGHT
+      terminalSize.rows - INPUT_HEIGHT - STATUS_HEIGHT - PADDING_HEIGHT - TOOL_CHIPS_HEIGHT - CONTEXT_CHIPS_HEIGHT - SAFETY_BUFFER
     );
 
     const totalMessages = state.messages.length;
@@ -2889,10 +5202,22 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
       visibleMessages: state.messages.slice(startIdx, endIdx),
       scrollOffset: effectiveScrollOffset
     };
-  }, [state.messages, state.messageScrollOffset, terminalSize]);
+  }, [state.messages, state.messageScrollOffset, terminalSize, state.thinkingSessions.length, state.currentTool, state.contextChips.length]);
 
   // Compute grouped tool activity for chips display
   const toolActivity = useMemo(() => extractToolActivity(state.messages, state.greyOutFinishedTools), [state.messages, state.greyOutFinishedTools]);
+
+  // Compute input mode for visual feedback
+  const inputMode = useMemo(() => {
+    const text = segmentsToDisplayString(inputSegments);
+    if (text.startsWith('!')) return 'bash';
+    if (text.startsWith('/')) return 'command';
+    return 'chat';
+  }, [inputSegments]);
+
+  // Get input border color based on mode (use theme color for default)
+  const inputBorderColor = inputMode === 'bash' ? activeTheme.colors.error : inputMode === 'command' ? activeTheme.colors.warning : activeTheme.colors.inputBorder;
+  const inputPrompt = inputMode === 'bash' ? '$ ' : '> ';
 
   return (
     <box style={{ flexDirection: 'column', height: '100%' }}>
@@ -2903,7 +5228,15 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
           flexGrow: 1,
           paddingLeft: 1,
           paddingRight: 1,
-          paddingTop: 1
+          paddingTop: 1,
+          overflow: 'hidden'
+        }}
+        onMouseScroll={(event) => {
+          // Scroll messages with mouse wheel
+          const delta = event.deltaY > 0 ? 3 : -3; // Scroll 3 lines at a time
+          updateState((prev) => ({
+            messageScrollOffset: Math.max(0, prev.messageScrollOffset + delta)
+          }));
         }}
       >
         {visibleMessages
@@ -2918,13 +5251,13 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                   <box
                     border={true}
                     borderStyle="rounded"
-                    borderColor="gray"
+                    borderColor={activeTheme.colors.userMessage}
                     style={{ paddingLeft: 1, paddingRight: 1, paddingTop: 0, paddingBottom: 0 }}
                     bg="blackBright"
                   >
                     {hasMarkdown ?
                       renderMarkdown(msg.content)
-                    : <text content={msg.content} fg="white" />}
+                    : <text content={msg.content} fg={activeTheme.colors.secondary} />}
                   </box>
                 </box>
               );
@@ -2938,16 +5271,16 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                   <box
                     border={true}
                     borderStyle="rounded"
-                    borderColor="gray"
+                    borderColor={activeTheme.colors.border}
                     style={{ paddingLeft: 1, paddingRight: 1, paddingTop: 0, paddingBottom: 0 }}
                     bg="blackBright"
                   >
                     {hasMarkdown ?
                       renderMarkdown(msg.content)
-                    : <text content={msg.content} fg="white" />}
+                    : <text content={msg.content} fg={activeTheme.colors.assistantMessage} />}
                   </box>
                   {modelDisplay && (
-                    <text content={` [${modelDisplay}]`} fg="gray" />
+                    <text content={` [${modelDisplay}]`} fg={activeTheme.colors.muted} />
                   )}
                 </box>
               );
@@ -2958,30 +5291,30 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
               const isLogo = msg.content.includes(',gggg,');
               if (isLogo) {
                 return (
-                  <box key={key} style={{ marginBottom: 1 }}>
-                    <text content={msg.content} fg="yellow" />
+                  <box key={key} style={{ marginBottom: 0 }}>
+                    <text content={msg.content} fg={activeTheme.colors.primary} />
                   </box>
                 );
               }
-              // Special styling for welcome message
-              const isWelcome = msg.content.includes('Claudelet OpenTUI - Claude Agent Chat');
-              if (isWelcome) {
+              // Special styling for startup banner
+              if (msg.isBanner) {
                 return (
-                  <box
-                    key={key}
-                    border={true}
-                    borderStyle="rounded"
-                    borderColor="gray"
-                    style={{ marginBottom: 1, paddingLeft: 1, paddingRight: 1, paddingTop: 0, paddingBottom: 0 }}
-                    bg="blackBright"
-                  >
-                    <text content={msg.content} fg="white" />
+                  <box key={key} style={{ marginBottom: 0 }}>
+                    <text content={msg.content} fg={activeTheme.colors.accent} />
+                  </box>
+                );
+              }
+              // Session resume or keyboard hints
+              if (msg.content.includes('[↻]') || msg.content.startsWith('Keyboard:')) {
+                return (
+                  <box key={key} style={{ marginBottom: 1 }}>
+                    <text content={msg.content} fg={activeTheme.colors.muted} />
                   </box>
                 );
               }
               return (
                 <box key={key} style={{ marginBottom: 0 }}>
-                  <text content={msg.content} fg="gray" />
+                  <text content={msg.content} fg={activeTheme.colors.systemMessage} />
                 </box>
               );
             }
@@ -3002,47 +5335,113 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
         {/* INLINE MODE: Bordered boxes inline with messages */}
         {state.chipDisplayStyle === 'inline' && (state.thinkingSessions.length > 0 || state.currentTool || toolActivity.length > 0 || state.contextChips.length > 0) && (
           <box style={{ marginTop: 1, flexDirection: 'row', flexWrap: 'wrap', paddingLeft: 1 }}>
-            {/* Thinking sessions */}
-            {state.thinkingSessions.map((session) => (
-              <box
-                key={session.id}
-                border={true}
-                borderStyle="rounded"
-                borderColor="yellow"
-                style={{ paddingLeft: 1, paddingRight: 1, marginRight: 1 }}
-              >
-                <text content={formatThinkingChip(session, true, brailleFrame)} fg="yellow" />
-              </box>
-            ))}
+            {/* Thinking sessions - clickable to expand */}
+            {state.thinkingSessions.map((session) => {
+              const isExpanded = state.expandedChipId === `thinking-${session.id}`;
+              return (
+                <box
+                  key={session.id}
+                  style={{ flexDirection: 'column', marginRight: 1 }}
+                >
+                  <box
+                    border={true}
+                    borderStyle="rounded"
+                    borderColor={activeTheme.colors.thinkingChip}
+                    style={{ paddingLeft: 1, paddingRight: 1, cursor: 'pointer' }}
+                    onMouseUp={() => {
+                      updateState((prev) => ({
+                        expandedChipId: prev.expandedChipId === `thinking-${session.id}` ? null : `thinking-${session.id}`
+                      }));
+                    }}
+                  >
+                    <text
+                      content={`${isExpanded ? '▼' : '▶'} ${formatThinkingChip(session, true, brailleFrame)}`}
+                      fg={activeTheme.colors.thinkingChip}
+                    />
+                  </box>
+                  {/* Expanded thinking content */}
+                  {isExpanded && session.content && (
+                    <box
+                      border={true}
+                      borderStyle="single"
+                      borderColor={activeTheme.colors.thinkingChip}
+                      style={{ paddingLeft: 1, paddingRight: 1, marginTop: 0, maxHeight: 8, maxWidth: 60 }}
+                    >
+                      <text content={session.content.slice(-500)} fg={activeTheme.colors.muted} />
+                    </box>
+                  )}
+                </box>
+              );
+            })}
 
             {/* Running tool box */}
             {state.currentTool && (
               <box
                 border={true}
                 borderStyle="rounded"
-                borderColor="magenta"
+                borderColor={activeTheme.colors.toolChipActive}
                 style={{ paddingLeft: 1, paddingRight: 1, marginRight: 1 }}
               >
-                <text content={`${brailleFrames[brailleFrame]} ${state.currentTool}`} fg="magenta" />
+                <text content={`${brailleFrames[brailleFrame]} ${state.currentTool}`} fg={activeTheme.colors.toolChipActive} />
               </box>
             )}
 
-            {/* Tool boxes inline */}
-            {toolActivity.map((activity) => (
-              <box
-                key={`inline-tool-${activity.name}`}
-                border={true}
-                borderStyle="rounded"
-                borderColor={activity.isActive ? 'cyan' : 'gray'}
-                style={{ paddingLeft: 1, paddingRight: 1, marginRight: 1 }}
-              >
-                <text
-                  content={`${activity.name.toLowerCase()}${activity.count > 1 ? ` x${activity.count}` : ''}`}
-                  fg={activity.isActive ? 'cyan' : 'gray'}
-                  bold={activity.isActive}
-                />
-              </box>
-            ))}
+            {/* Tool boxes inline - clickable to expand */}
+            {toolActivity.map((activity) => {
+              const isExpanded = state.expandedChipId === `tool-${activity.name}`;
+              const toolMessages = state.messages.filter(
+                (m) => m.role === 'tool' && m.toolName === activity.name
+              );
+
+              return (
+                <box
+                  key={`inline-tool-${activity.name}`}
+                  style={{ flexDirection: 'column', marginRight: 1 }}
+                >
+                  <box
+                    border={true}
+                    borderStyle="rounded"
+                    borderColor={activity.isActive ? activeTheme.colors.toolChipActive : activeTheme.colors.toolChip}
+                    style={{ paddingLeft: 1, paddingRight: 1, cursor: 'pointer' }}
+                    onMouseUp={() => {
+                      updateState((prev) => ({
+                        expandedChipId: prev.expandedChipId === `tool-${activity.name}` ? null : `tool-${activity.name}`
+                      }));
+                    }}
+                  >
+                    <text
+                      content={`${isExpanded ? '▼' : '▶'} ${activity.name.toLowerCase()} x${activity.count}`}
+                      fg={activity.isActive ? activeTheme.colors.toolChipActive : activeTheme.colors.toolChip}
+                      bold={activity.isActive}
+                    />
+                  </box>
+                  {/* Expanded tool details */}
+                  {isExpanded && toolMessages.length > 0 && (
+                    <box
+                      border={true}
+                      borderStyle="single"
+                      borderColor="gray"
+                      style={{ paddingLeft: 1, paddingRight: 1, marginTop: 0, maxHeight: 10 }}
+                    >
+                      {toolMessages.slice(-5).map((msg, idx) => (
+                        <box key={`tool-detail-${idx}`} style={{ flexDirection: 'column' }}>
+                          <text
+                            content={`${idx + 1}. ${msg.toolInput ? JSON.stringify(msg.toolInput).slice(0, 50) : 'No input'}${msg.toolInput && JSON.stringify(msg.toolInput).length > 50 ? '...' : ''}`}
+                            fg="white"
+                          />
+                          {msg.toolResult && (
+                            <text
+                              content={`   → ${msg.toolResult.slice(0, 40)}${msg.toolResult.length > 40 ? '...' : ''}`}
+                              fg="gray"
+                            />
+                          )}
+                        </box>
+                      ))}
+                    </box>
+                  )}
+                </box>
+              );
+            })}
 
             {/* Context chips as bordered boxes */}
             {state.contextChips.map((chip) => {
@@ -3054,7 +5453,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                   borderStyle="rounded"
                   borderColor="gray"
                   style={{ paddingLeft: 1, paddingRight: 1, marginRight: 1 }}
-                  onClick={() => {
+                  onMouseUp={() => {
                     // Remove chip when clicked
                     updateState((prev) => ({
                       contextChips: prev.contextChips.filter((c) => c.id !== chip.id)
@@ -3110,50 +5509,116 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
       {/* Chip display - mode-based rendering (BOXES MODE: fixed above input) */}
       {state.chipDisplayStyle === 'boxes' && (state.thinkingSessions.length > 0 || state.currentTool || toolActivity.length > 0 || state.contextChips.length > 0) && (
         <box style={{ marginTop: 0, flexDirection: 'row', paddingLeft: 1, flexWrap: 'wrap' }}>
-          {/* Thinking sessions */}
-          {state.thinkingSessions.map((session) => (
-            <box
-              key={session.id}
-              border={true}
-              borderStyle="rounded"
-              borderColor="yellow"
-              style={{ paddingLeft: 1, paddingRight: 1, marginRight: 1 }}
-            >
-              <text content={formatThinkingChip(session, true, brailleFrame)} fg="yellow" />
-            </box>
-          ))}
+          {/* Thinking sessions - clickable to expand */}
+          {state.thinkingSessions.map((session) => {
+            const isExpanded = state.expandedChipId === `thinking-${session.id}`;
+            return (
+              <box
+                key={session.id}
+                style={{ flexDirection: 'column', marginRight: 1 }}
+              >
+                <box
+                  border={true}
+                  borderStyle="rounded"
+                  borderColor={activeTheme.colors.thinkingChip}
+                  style={{ paddingLeft: 1, paddingRight: 1, cursor: 'pointer' }}
+                  onMouseUp={() => {
+                    updateState((prev) => ({
+                      expandedChipId: prev.expandedChipId === `thinking-${session.id}` ? null : `thinking-${session.id}`
+                    }));
+                  }}
+                >
+                  <text
+                    content={`${isExpanded ? '▼' : '▶'} ${formatThinkingChip(session, true, brailleFrame)}`}
+                    fg={activeTheme.colors.thinkingChip}
+                  />
+                </box>
+                {/* Expanded thinking content */}
+                {isExpanded && session.content && (
+                  <box
+                    border={true}
+                    borderStyle="single"
+                    borderColor={activeTheme.colors.thinkingChip}
+                    style={{ paddingLeft: 1, paddingRight: 1, marginTop: 0, maxHeight: 8, maxWidth: 60 }}
+                  >
+                    <text content={session.content.slice(-500)} fg={activeTheme.colors.muted} />
+                  </box>
+                )}
+              </box>
+            );
+          })}
 
           {/* Running tool box */}
           {state.currentTool && (
             <box
               border={true}
               borderStyle="rounded"
-              borderColor="magenta"
+              borderColor={activeTheme.colors.toolChipActive}
               style={{ paddingLeft: 1, paddingRight: 1, marginRight: 1 }}
             >
               <text
                 content={`${brailleFrames[brailleFrame]} ${state.currentTool}`}
-                fg="magenta"
+                fg={activeTheme.colors.toolChipActive}
               />
             </box>
           )}
 
-          {/* Tool activity boxes */}
-          {toolActivity.map((activity) => (
-            <box
-              key={`boxes-tool-${activity.name}`}
-              border={true}
-              borderStyle="rounded"
-              borderColor={activity.isActive ? 'cyan' : 'gray'}
-              style={{ paddingLeft: 1, paddingRight: 1, marginRight: 1 }}
-            >
-              <text
-                content={`${activity.name.toLowerCase()}${activity.count > 1 ? ` x${activity.count}` : ''}`}
-                fg={activity.isActive ? 'cyan' : 'gray'}
-                bold={activity.isActive}
-              />
-            </box>
-          ))}
+          {/* Tool activity boxes - clickable to expand */}
+          {toolActivity.map((activity) => {
+            const isExpanded = state.expandedChipId === `tool-${activity.name}`;
+            const toolMessages = state.messages.filter(
+              (m) => m.role === 'tool' && m.toolName === activity.name
+            );
+
+            return (
+              <box
+                key={`boxes-tool-${activity.name}`}
+                style={{ flexDirection: 'column', marginRight: 1 }}
+              >
+                <box
+                  border={true}
+                  borderStyle="rounded"
+                  borderColor={activity.isActive ? activeTheme.colors.toolChipActive : activeTheme.colors.toolChip}
+                  style={{ paddingLeft: 1, paddingRight: 1, cursor: 'pointer' }}
+                  onMouseUp={() => {
+                    updateState((prev) => ({
+                      expandedChipId: prev.expandedChipId === `tool-${activity.name}` ? null : `tool-${activity.name}`
+                    }));
+                  }}
+                >
+                  <text
+                    content={`${isExpanded ? '▼' : '▶'} ${activity.name.toLowerCase()} x${activity.count}`}
+                    fg={activity.isActive ? activeTheme.colors.toolChipActive : activeTheme.colors.toolChip}
+                    bold={activity.isActive}
+                  />
+                </box>
+                {/* Expanded tool details */}
+                {isExpanded && toolMessages.length > 0 && (
+                  <box
+                    border={true}
+                    borderStyle="single"
+                    borderColor={activeTheme.colors.muted}
+                    style={{ paddingLeft: 1, paddingRight: 1, marginTop: 0, maxHeight: 10 }}
+                  >
+                    {toolMessages.slice(-5).map((msg, idx) => (
+                      <box key={`box-tool-detail-${idx}`} style={{ flexDirection: 'column' }}>
+                        <text
+                          content={`${idx + 1}. ${msg.toolInput ? JSON.stringify(msg.toolInput).slice(0, 50) : 'No input'}${msg.toolInput && JSON.stringify(msg.toolInput).length > 50 ? '...' : ''}`}
+                          fg="white"
+                        />
+                        {msg.toolResult && (
+                          <text
+                            content={`   → ${msg.toolResult.slice(0, 40)}${msg.toolResult.length > 40 ? '...' : ''}`}
+                            fg="gray"
+                          />
+                        )}
+                      </box>
+                    ))}
+                  </box>
+                )}
+              </box>
+            );
+          })}
 
           {/* Context chips - shown as bordered boxes */}
           {state.contextChips.map((chip) => {
@@ -3166,7 +5631,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                 borderStyle="rounded"
                 borderColor="gray"
                 style={{ paddingLeft: 1, paddingRight: 1, marginRight: 1 }}
-                onClick={() => {
+                onMouseUp={() => {
                   // Remove chip when clicked
                   updateState((prev) => ({
                     contextChips: prev.contextChips.filter((c) => c.id !== chip.id)
@@ -3255,16 +5720,52 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
         />
       )}
 
-      {/* Input bar */}
-      <box border={true} borderStyle="rounded" borderColor="gray" style={{ paddingLeft: 1, flexShrink: 0, minHeight: 3 }}>
+      {/* Input bar - 1 line default, grows when chips present */}
+      <box border={true} borderStyle="rounded" borderColor={inputBorderColor} style={{ paddingLeft: 1, flexShrink: 0, height: state.contextChips.length > 0 ? 5 : 3 }}>
+        {/* Top line: Context chips (only shown when chips exist) */}
+        {state.contextChips.length > 0 && (
+          <>
+            <box style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+              {state.contextChips.map((chip, idx) => {
+                const chipBg = chip.isInclude ? 'white' : 'red';
+                const chipFg = chip.isInclude ? 'black' : 'white';
+                const prefix = chip.isInclude ? '+' : '-';
+                return (
+                  <React.Fragment key={`ctx-${chip.id}`}>
+                    <text
+                      content={`[${prefix}${chip.label}×]`}
+                      bg={chipBg}
+                      fg={chipFg}
+                      bold={true}
+                      onMouseUp={() => {
+                        // Remove chip when clicked
+                        updateState((prev) => ({
+                          contextChips: prev.contextChips.filter((c) => c.id !== chip.id)
+                        }));
+                        // Also remove from input segments if present
+                        setInputSegments((prev) => prev.filter(
+                          (s) => s.type !== 'context' || s.context.id !== chip.id
+                        ));
+                      }}
+                    />
+                    {idx < state.contextChips.length - 1 && <text content=" " />}
+                  </React.Fragment>
+                );
+              })}
+            </box>
+            <text content="" />
+          </>
+        )}
+        {/* Input area - in the middle */}
         {true ?
           <box style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-            <text content="> " fg="gray" />
+            <text content={inputPrompt} fg={inputBorderColor === 'gray' ? 'gray' : inputBorderColor} bold={inputMode !== 'chat'} />
             {(() => {
-              // Check if empty
-              const isEmpty = inputSegments.length === 1 &&
-                             inputSegments[0].type === 'text' &&
-                             inputSegments[0].text === '';
+              // Check if empty (ignoring context chips)
+              const textAndChipSegments = inputSegments.filter((s) => s.type !== 'context');
+              const isEmpty = textAndChipSegments.length === 1 &&
+                             textAndChipSegments[0].type === 'text' &&
+                             textAndChipSegments[0].text === '';
 
               if (isEmpty) {
                 return (
@@ -3278,47 +5779,48 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                 );
               }
 
-              // Render segments with styling
+              // Render text and file chip segments (not context chips - those are on top line)
+              const nonContextSegments = inputSegments.filter((s) => s.type !== 'context');
+              const isLastSegmentText = nonContextSegments[nonContextSegments.length - 1]?.type === 'text';
               return (
                 <>
-                  {inputSegments.map((segment, idx) => {
+                  {nonContextSegments.map((segment, idx) => {
+                    const isLastText = isLastSegmentText && idx === nonContextSegments.length - 1;
+
                     if (segment.type === 'text') {
+                      // For the last text segment, render with cursor in correct position
+                      if (isLastText) {
+                        const text = segment.text;
+                        const beforeCursor = text.slice(0, cursorPosition);
+                        const afterCursor = text.slice(cursorPosition);
+                        return (
+                          <React.Fragment key={`text-${idx}`}>
+                            <text content={beforeCursor} fg="white" />
+                            <text content={cursorVisible ? '█' : ' '} fg="gray" />
+                            <text content={afterCursor} fg="white" />
+                          </React.Fragment>
+                        );
+                      }
                       return <text key={`text-${idx}`} content={segment.text} fg="white" />;
                     } else if (segment.type === 'chip') {
                       return (
                         <text
                           key={`chip-${segment.chip.id}`}
                           content={`[${segment.chip.label}×]`}
-                          bg="blue"
+                          bg={activeTheme.colors.highlight}
                           fg="black"
                           bold={true}
-                          onClick={() => {
-                            // Remove chip when clicked
-                            setInputSegments((prev) => prev.filter((_, i) => i !== idx));
-                          }}
-                        />
-                      );
-                    } else {
-                      // Context chip
-                      const chipBg = segment.context.isInclude ? 'white' : 'red';
-                      const chipFg = segment.context.isInclude ? 'black' : 'white';
-                      const prefix = segment.context.isInclude ? '+' : '-';
-                      return (
-                        <text
-                          key={`context-${segment.context.id}`}
-                          content={`[${prefix}${segment.context.label}×]`}
-                          bg={chipBg}
-                          fg={chipFg}
-                          bold={true}
-                          onClick={() => {
+                          onMouseUp={() => {
                             // Remove chip when clicked
                             setInputSegments((prev) => prev.filter((_, i) => i !== idx));
                           }}
                         />
                       );
                     }
+                    return null;
                   })}
-                  <text content={cursorVisible ? '█' : ' '} fg="gray" />
+                  {/* Cursor at end if last segment is not text */}
+                  {!isLastSegmentText && <text content={cursorVisible ? '█' : ' '} fg="gray" />}
                 </>
               );
             })()}
@@ -3332,83 +5834,187 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
 
       {/* Status bar */}
       <box style={{ paddingLeft: 1, paddingRight: 1, marginTop: 0, flexDirection: 'row' }}>
-        <text content={getModelDisplayFromPreference(state.currentModel)} fg="gray" />
-        <text content=" | Mode: " fg="gray" />
+        {/* KITT Animation - clickable to open theme picker */}
+        {isActivityHappening ? (
+          <box
+            style={{ flexDirection: 'row' }}
+            onMouseUp={() => updateState((prev) => ({
+              showThemePicker: !prev.showThemePicker,
+              selectedThemeIndex: DEFAULT_THEMES.findIndex(t => t.name === state.currentTheme.name)
+            }))}
+          >
+            <text content="[" fg={activeTheme.colors.kittBracket} />
+            {Array.from({ length: kittWidth }).map((_, i) => {
+              const distance = Math.abs(i - kittPosition);
+              const isLit = distance === 0;
+              const isDim = distance === 1;
+              const isFaint = distance === 2;
+              return (
+                <text
+                  key={`kitt-${i}`}
+                  content={isLit ? activeTheme.colors.kittLit : isDim ? activeTheme.colors.kittDim : isFaint ? activeTheme.colors.kittFaint : activeTheme.colors.kittOff}
+                  fg={isLit ? activeTheme.colors.kittColor : isDim ? activeTheme.colors.kittColor : isFaint ? activeTheme.colors.kittColor : 'gray'}
+                />
+              );
+            })}
+            <text content="]" fg={activeTheme.colors.kittBracket} />
+          </box>
+        ) : (
+          <text
+            content={`[${activeTheme.colors.kittOff.repeat(kittWidth)}]`}
+            fg={activeTheme.colors.muted}
+            onMouseUp={() => updateState((prev) => ({
+              showThemePicker: !prev.showThemePicker,
+              selectedThemeIndex: DEFAULT_THEMES.findIndex(t => t.name === state.currentTheme.name)
+            }))}
+          />
+        )}
+        <text content=" | " fg={activeTheme.colors.separator} />
+        {/* Model selector - clickable */}
         <text
-          content={state.agentMode.toUpperCase()}
-          fg="white"
-          bold
+          content={state.currentModel === 'auto' ? 'Auto' : getModelDisplayFromPreference(state.currentModel)}
+          fg={state.activeStatusPopup === 'model' ? activeTheme.colors.highlight : activeTheme.colors.muted}
+          bold={state.activeStatusPopup === 'model'}
+          onMouseUp={() => {
+            updateState((prev) => ({
+              activeStatusPopup: prev.activeStatusPopup === 'model' ? null : 'model',
+              selectedPopupIndex: models.findIndex(m => m.id === state.currentModel)
+            }));
+          }}
         />
-        <text content=" | " fg="gray" />
+        <text content=" | " fg={activeTheme.colors.separator} />
+        {/* Mode selector - clickable */}
         <text
-          content={`${state.subAgentsSectionExpanded ? '[-]' : '[+]'} Agents: ${state.subAgents.length}`}
-          fg="magenta"
+          content={
+            state.thinkingSessions.some(s => !s.endTime) ? 'THINKING' :
+            state.currentTool ? 'TOOL' :
+            state.isResponding ? 'RESPONDING' :
+            state.agentMode.toUpperCase()
+          }
+          fg={
+            state.activeStatusPopup === 'mode' ? activeTheme.colors.highlight :
+            state.thinkingSessions.some(s => !s.endTime) ? activeTheme.colors.thinkingChip :
+            state.currentTool ? activeTheme.colors.toolChipActive :
+            state.isResponding ? activeTheme.colors.success :
+            activeTheme.colors.secondary
+          }
           bold
-          onClick={() => {
+          onMouseUp={() => {
+            updateState((prev) => ({
+              activeStatusPopup: prev.activeStatusPopup === 'mode' ? null : 'mode',
+              selectedPopupIndex: state.agentMode === 'coding' ? 0 : 1
+            }));
+          }}
+        />
+        <text content=" | " fg={activeTheme.colors.separator} />
+        <text
+          content={`${state.subAgentsSectionExpanded ? '[-]' : '[+]'} Agents:${state.subAgents.length}`}
+          fg={activeTheme.colors.accent}
+          bold
+          onMouseUp={() => {
             updateState((prev) => ({
               subAgentsSectionExpanded: !prev.subAgentsSectionExpanded
             }));
           }}
         />
-        {state.queuedMessages > 0 && <text content=" | " fg="gray" />}
+        {state.queuedMessages > 0 && <text content=" | " fg={activeTheme.colors.separator} />}
         {state.queuedMessages > 0 && (
-          <box
-            border={true}
-            borderStyle="rounded"
-            borderColor="blue"
-            style={{ paddingLeft: 1, paddingRight: 1, marginRight: 1 }}
-          >
-            <text
-              content={`${state.queuedMessages} queued`}
-              fg="blue"
-              bold
-            />
-          </box>
+          <text content={`Q:${state.queuedMessages}`} fg={activeTheme.colors.info} bold />
         )}
-        <text content=" | " fg="gray" />
+        <text content=" | " fg={activeTheme.colors.separator} />
+        {/* Context - clickable */}
         {(() => {
           const MAX_CONTEXT = 200000;
           const total = state.inputTokens + state.outputTokens;
           const percentLeft = Math.max(0, Math.round(((MAX_CONTEXT - total) / MAX_CONTEXT) * 100));
-          return <text content={`${percentLeft}%`} fg="white" bold />;
+          return (
+            <text
+              content={`${percentLeft}%`}
+              fg={state.activeStatusPopup === 'context' ? activeTheme.colors.highlight : activeTheme.colors.secondary}
+              bold
+              onMouseUp={() => {
+                updateState((prev) => ({
+                  activeStatusPopup: prev.activeStatusPopup === 'context' ? null : 'context'
+                }));
+              }}
+            />
+          );
         })()}
-        <text content=" (" fg="gray" />
-        <text content={`↑ ${state.inputTokens.toLocaleString()}`} fg="white" />
-        <text content=" " fg="gray" />
-        <text content={`↓ ${state.outputTokens.toLocaleString()}`} fg="white" />
-        <text content=")" fg="gray" />
+        <text content=" (" fg={activeTheme.colors.muted} />
+        <text content={`↑${state.inputTokens.toLocaleString()}`} fg={activeTheme.colors.secondary} />
+        <text content=" " fg={activeTheme.colors.muted} />
+        <text content={`↓${state.outputTokens.toLocaleString()}`} fg={activeTheme.colors.secondary} />
+        <text content=")" fg={activeTheme.colors.muted} />
         {historyIndex !== -1 && (
-          <text content={` | H${historyIndex + 1}/${history.length}`} fg="gray" />
+          <>
+            <text content=" | " fg={activeTheme.colors.separator} />
+            <text content={`H${historyIndex + 1}/${history.length}`} fg={activeTheme.colors.muted} />
+          </>
         )}
         {aiStats && (
           <box style={{ flexDirection: 'row' }}>
-            <text content=" | " fg="gray" />
-            {/* Watcher status indicator - colored bullet */}
+            <text content=" | " fg={activeTheme.colors.separator} />
             <text
               content="●"
               fg={
-                aiStats.watcher === 'off' ? 'gray' :
-                aiStats.watcher === 'starting' ? 'yellow' :
-                aiStats.watcher === 'ready' ? 'green' :
-                aiStats.watcher === 'watching' ? 'cyan' :
-                aiStats.watcher === 'error' ? 'red' : 'gray'
+                aiStats.watcher === 'off' ? activeTheme.colors.muted :
+                aiStats.watcher === 'starting' ? activeTheme.colors.warning :
+                aiStats.watcher === 'ready' ? activeTheme.colors.success :
+                aiStats.watcher === 'watching' ? activeTheme.colors.info :
+                aiStats.watcher === 'error' ? activeTheme.colors.error : activeTheme.colors.muted
               }
             />
-            <text content=" " fg="gray" />
-            <text content="LSP: " fg="gray" />
-            <text content={`${aiStats.lsp.activeServers}`} fg="white" />
-            <text content=" | " fg="gray" />
-            <text content="IDX: " fg="gray" />
+            <text
+              content=" LSP:"
+              fg={state.activeStatusPopup === 'lsp' ? activeTheme.colors.highlight : activeTheme.colors.muted}
+              onMouseUp={() => {
+                updateState((prev) => ({
+                  activeStatusPopup: prev.activeStatusPopup === 'lsp' ? null : 'lsp'
+                }));
+              }}
+            />
+            <text
+              content={`${aiStats.lsp.activeServers}`}
+              fg={state.activeStatusPopup === 'lsp' ? activeTheme.colors.highlight : activeTheme.colors.secondary}
+              onMouseUp={() => {
+                updateState((prev) => ({
+                  activeStatusPopup: prev.activeStatusPopup === 'lsp' ? null : 'lsp'
+                }));
+              }}
+            />
+            <text content=" | " fg={activeTheme.colors.separator} />
+            <text
+              content="IDX:"
+              fg={state.activeStatusPopup === 'idx' ? activeTheme.colors.highlight : activeTheme.colors.muted}
+              onMouseUp={() => {
+                updateState((prev) => ({
+                  activeStatusPopup: prev.activeStatusPopup === 'idx' ? null : 'idx'
+                }));
+              }}
+            />
             <text
               content={
                 aiStats.indexer.isIndexing ?
                   `${Math.round((aiStats.indexer.current / aiStats.indexer.total) * 100)}%`
                 : 'ready'
               }
-              fg="white"
+              fg={state.activeStatusPopup === 'idx' ? activeTheme.colors.highlight : activeTheme.colors.secondary}
+              onMouseUp={() => {
+                updateState((prev) => ({
+                  activeStatusPopup: prev.activeStatusPopup === 'idx' ? null : 'idx'
+                }));
+              }}
             />
-            <text content=" | " fg="gray" />
-            <text content={aiStats.patchModel} fg="gray" />
+            <text content=" | " fg={activeTheme.colors.separator} />
+            <text
+              content={aiStats.patchModel}
+              fg={state.activeStatusPopup === 'patchModel' ? activeTheme.colors.highlight : activeTheme.colors.muted}
+              onMouseUp={() => {
+                updateState((prev) => ({
+                  activeStatusPopup: prev.activeStatusPopup === 'patchModel' ? null : 'patchModel'
+                }));
+              }}
+            />
           </box>
         )}
       </box>
@@ -3556,6 +6162,376 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
           ))}
           <box style={{ marginTop: 1 }}>
             <text content="↑↓: Select | Enter/Space: Switch | Esc: Close" fg="gray" italic />
+          </box>
+        </box>
+      )}
+
+      {/* Theme Picker Dialog - centered */}
+      {state.showThemePicker && (() => {
+        const dialogWidth = 50;
+        const dialogHeight = DEFAULT_THEMES.length + 4;
+        const centerLeft = Math.max(0, Math.floor((terminalSize.cols - dialogWidth) / 2));
+        const centerTop = Math.max(0, Math.floor((terminalSize.rows - dialogHeight) / 2));
+        return (
+          <box
+            style={{
+              position: 'absolute',
+              left: centerLeft,
+              top: centerTop,
+              width: dialogWidth,
+              height: dialogHeight,
+              flexDirection: 'column',
+              zIndex: 1001,
+              backgroundColor: 'black'
+            }}
+            border={true}
+            borderStyle="rounded"
+            borderColor={activeTheme.colors.highlight}
+            title=" Themes "
+          >
+            {/* Theme list */}
+            {DEFAULT_THEMES.map((theme, idx) => {
+              const isSelected = state.selectedThemeIndex === idx;
+              const isCurrent = state.currentTheme.name === theme.name;
+              return (
+                <box
+                  key={theme.name}
+                  style={{
+                    paddingLeft: 1,
+                    paddingRight: 1,
+                    flexDirection: 'row'
+                  }}
+                  onMouseUp={() => {
+                    saveThemeName(theme.name); // Persist theme choice
+                    updateState({
+                      currentTheme: theme,
+                      selectedThemeIndex: idx,
+                      showThemePicker: false
+                    });
+                    setPreviewTheme(null);
+                  }}
+                  onMouseEnter={() => {
+                    setPreviewTheme(theme);
+                    updateState({ selectedThemeIndex: idx });
+                  }}
+                >
+                  <text
+                    content={isSelected ? '▸ ' : '  '}
+                    fg={isSelected ? theme.colors.primary : 'gray'}
+                  />
+                  <text
+                    content={theme.name.padEnd(14)}
+                    fg={isSelected ? theme.colors.primary : 'gray'}
+                    bold={isSelected}
+                  />
+                  <text
+                    content={theme.description.substring(0, 18).padEnd(18)}
+                    fg={isSelected ? 'white' : 'gray'}
+                  />
+                  <text content={isCurrent ? ' ✓' : ''} fg={theme.colors.accent} />
+                </box>
+              );
+            })}
+            {/* Instructions */}
+            <box style={{ marginTop: 1, paddingLeft: 1 }}>
+              <text content="↑↓ Preview  Enter Apply  Esc Cancel" fg="gray" />
+            </box>
+          </box>
+        );
+      })()}
+
+      {/* Status Bar Popups - appear above status bar */}
+
+      {/* Model Selector Popup */}
+      {state.activeStatusPopup === 'model' && (
+        <box
+          style={{
+            position: 'absolute',
+            left: 14,
+            bottom: 2,
+            width: 35,
+            height: models.length + 4,
+            flexDirection: 'column',
+            zIndex: 1002,
+            backgroundColor: 'black'
+          }}
+          border={true}
+          borderStyle="rounded"
+          borderColor="yellow"
+          title=" Model "
+        >
+          {models.map((model, idx) => {
+            const isSelected = state.selectedPopupIndex === idx;
+            const isCurrent = state.currentModel === model.id;
+            return (
+              <box
+                key={model.id}
+                style={{ paddingLeft: 1, paddingRight: 1, flexDirection: 'row' }}
+                onMouseUp={() => {
+                  updateState({
+                    currentModel: model.display,
+                    activeStatusPopup: null
+                  });
+                }}
+              >
+                <text content={isSelected ? '▶ ' : '  '} fg={isSelected ? 'yellow' : 'gray'} />
+                <text content={model.name} fg={isSelected ? 'white' : 'gray'} bold={isSelected} />
+                <text content={isCurrent ? ' ●' : ''} fg="yellow" />
+              </box>
+            );
+          })}
+          <box style={{ marginTop: 1, paddingLeft: 1 }}>
+            <text content="Click to select | Esc: Close" fg="gray" italic />
+          </box>
+        </box>
+      )}
+
+      {/* Mode Selector Popup */}
+      {state.activeStatusPopup === 'mode' && (
+        <box
+          style={{
+            position: 'absolute',
+            left: 27,
+            bottom: 2,
+            width: 30,
+            height: 6,
+            flexDirection: 'column',
+            zIndex: 1002,
+            backgroundColor: 'black'
+          }}
+          border={true}
+          borderStyle="rounded"
+          borderColor="yellow"
+          title=" Mode "
+        >
+          {(['coding', 'planning'] as const).map((mode, idx) => {
+            const isSelected = state.selectedPopupIndex === idx;
+            const isCurrent = state.agentMode === mode;
+            return (
+              <box
+                key={mode}
+                style={{ paddingLeft: 1, paddingRight: 1, flexDirection: 'row' }}
+                onMouseUp={() => {
+                  updateState({
+                    agentMode: mode,
+                    activeStatusPopup: null
+                  });
+                }}
+              >
+                <text content={isSelected ? '▶ ' : '  '} fg={isSelected ? 'yellow' : 'gray'} />
+                <text content={mode.toUpperCase()} fg={isSelected ? 'white' : 'gray'} bold={isSelected} />
+                <text content={isCurrent ? ' ●' : ''} fg="yellow" />
+              </box>
+            );
+          })}
+          <box style={{ marginTop: 1, paddingLeft: 1 }}>
+            <text content="Click to select | Esc: Close" fg="gray" italic />
+          </box>
+        </box>
+      )}
+
+      {/* Context Status Popup */}
+      {state.activeStatusPopup === 'context' && (
+        <box
+          style={{
+            position: 'absolute',
+            right: 5,
+            bottom: 2,
+            width: 55,
+            height: 12,
+            flexDirection: 'column',
+            zIndex: 1002,
+            backgroundColor: 'black'
+          }}
+          border={true}
+          borderStyle="rounded"
+          borderColor="yellow"
+          title=" Context Window "
+        >
+          {(() => {
+            const MAX_CONTEXT = 200000;
+            const total = state.inputTokens + state.outputTokens;
+            const percentUsed = Math.round((total / MAX_CONTEXT) * 100);
+            const percentLeft = 100 - percentUsed;
+            const barWidth = 40;
+            const filledWidth = Math.round((percentUsed / 100) * barWidth);
+            const emptyWidth = barWidth - filledWidth;
+            return (
+              <>
+                <box style={{ paddingLeft: 1 }}>
+                  <text content="Usage: " fg="gray" />
+                  <text content={`${percentUsed}%`} fg={percentUsed > 80 ? 'red' : percentUsed > 50 ? 'yellow' : 'green'} bold />
+                  <text content={` (${percentLeft}% remaining)`} fg="gray" />
+                </box>
+                <box style={{ paddingLeft: 1, marginTop: 1 }}>
+                  <text content="[" fg="gray" />
+                  <text content={'█'.repeat(filledWidth)} fg={percentUsed > 80 ? 'red' : percentUsed > 50 ? 'yellow' : 'green'} />
+                  <text content={'░'.repeat(emptyWidth)} fg="gray" />
+                  <text content="]" fg="gray" />
+                </box>
+                <box style={{ paddingLeft: 1, marginTop: 1 }}>
+                  <text content="Input tokens:  " fg="gray" />
+                  <text content={state.inputTokens.toLocaleString()} fg="white" bold />
+                </box>
+                <box style={{ paddingLeft: 1 }}>
+                  <text content="Output tokens: " fg="gray" />
+                  <text content={state.outputTokens.toLocaleString()} fg="white" bold />
+                </box>
+                <box style={{ paddingLeft: 1 }}>
+                  <text content="Total:         " fg="gray" />
+                  <text content={total.toLocaleString()} fg="white" bold />
+                  <text content={` / ${MAX_CONTEXT.toLocaleString()}`} fg="gray" />
+                </box>
+                <box style={{ marginTop: 1, paddingLeft: 1 }}>
+                  <text content="Messages: " fg="gray" />
+                  <text content={`${state.messages.length}`} fg="white" />
+                </box>
+              </>
+            );
+          })()}
+          <box style={{ marginTop: 1, paddingLeft: 1 }}>
+            <text content="Click anywhere or Esc to close" fg="gray" italic />
+          </box>
+        </box>
+      )}
+
+      {/* LSP Status Popup */}
+      {state.activeStatusPopup === 'lsp' && aiStats && (
+        <box
+          style={{
+            position: 'absolute',
+            right: 25,
+            bottom: 2,
+            width: 50,
+            height: 10,
+            flexDirection: 'column',
+            zIndex: 1002,
+            backgroundColor: 'black'
+          }}
+          border={true}
+          borderStyle="rounded"
+          borderColor="yellow"
+          title=" LSP Status "
+        >
+          <box style={{ paddingLeft: 1 }}>
+            <text content="Language Server Protocol" fg="white" bold />
+          </box>
+          <box style={{ paddingLeft: 1, marginTop: 1 }}>
+            <text content="Active Servers: " fg="gray" />
+            <text content={`${aiStats.lsp.activeServers}`} fg="green" bold />
+          </box>
+          <box style={{ paddingLeft: 1 }}>
+            <text content="Files w/ Diagnostics: " fg="gray" />
+            <text content={`${aiStats.lsp.filesWithDiagnostics}`} fg="white" />
+          </box>
+          <box style={{ paddingLeft: 1, marginTop: 1 }}>
+            <text content="Servers: " fg="gray" />
+          </box>
+          <box style={{ paddingLeft: 2 }}>
+            <text content="TypeScript, CSS, HTML, JSON" fg="cyan" />
+          </box>
+          <box style={{ marginTop: 1, paddingLeft: 1 }}>
+            <text content="Click anywhere or Esc to close" fg="gray" italic />
+          </box>
+        </box>
+      )}
+
+      {/* IDX Status Popup */}
+      {state.activeStatusPopup === 'idx' && aiStats && (
+        <box
+          style={{
+            position: 'absolute',
+            right: 15,
+            bottom: 2,
+            width: 55,
+            height: 14,
+            flexDirection: 'column',
+            zIndex: 1002,
+            backgroundColor: 'black'
+          }}
+          border={true}
+          borderStyle="rounded"
+          borderColor="yellow"
+          title=" Index Status "
+        >
+          <box style={{ paddingLeft: 1 }}>
+            <text content="MGrep Semantic Search Index" fg="white" bold />
+          </box>
+          <box style={{ paddingLeft: 1, marginTop: 1 }}>
+            <text content="Status: " fg="gray" />
+            <text
+              content={aiStats.indexer.isIndexing ? 'Indexing...' : 'Ready'}
+              fg={aiStats.indexer.isIndexing ? 'yellow' : 'green'}
+              bold
+            />
+          </box>
+          {aiStats.indexer.isIndexing && (
+            <box style={{ paddingLeft: 1 }}>
+              <text content="Progress: " fg="gray" />
+              <text content={`${aiStats.indexer.current} / ${aiStats.indexer.total}`} fg="white" />
+              <text content={` (${aiStats.indexer.phase})`} fg="cyan" />
+            </box>
+          )}
+          <box style={{ paddingLeft: 1, marginTop: 1 }}>
+            <text content="Total Files:  " fg="gray" />
+            <text content={`${aiStats.indexer.totalFiles}`} fg="white" bold />
+          </box>
+          <box style={{ paddingLeft: 1 }}>
+            <text content="Total Chunks: " fg="gray" />
+            <text content={`${aiStats.indexer.totalChunks}`} fg="white" bold />
+          </box>
+          <box style={{ paddingLeft: 1, marginTop: 1 }}>
+            <text content="Test search: Type /search <query>" fg="cyan" />
+          </box>
+          <box style={{ marginTop: 1, paddingLeft: 1 }}>
+            <text content="Click anywhere or Esc to close" fg="gray" italic />
+          </box>
+        </box>
+      )}
+
+      {/* Patch Model Popup */}
+      {state.activeStatusPopup === 'patchModel' && aiStats && (
+        <box
+          style={{
+            position: 'absolute',
+            right: 5,
+            bottom: 2,
+            width: 50,
+            height: 12,
+            flexDirection: 'column',
+            zIndex: 1002,
+            backgroundColor: 'black'
+          }}
+          border={true}
+          borderStyle="rounded"
+          borderColor="yellow"
+          title=" AI Model "
+        >
+          <box style={{ paddingLeft: 1 }}>
+            <text content="Current Model" fg="white" bold />
+          </box>
+          <box style={{ paddingLeft: 1, marginTop: 1 }}>
+            <text content="Model: " fg="gray" />
+            <text content={aiStats.patchModel} fg="cyan" bold />
+          </box>
+          <box style={{ paddingLeft: 1, marginTop: 1 }}>
+            <text content="Provider: " fg="gray" />
+            <text content="Anthropic" fg="white" />
+          </box>
+          <box style={{ paddingLeft: 1, marginTop: 1 }}>
+            <text content="Capabilities:" fg="gray" />
+          </box>
+          <box style={{ paddingLeft: 2 }}>
+            <text content="• Code completion" fg="white" />
+          </box>
+          <box style={{ paddingLeft: 2 }}>
+            <text content="• Semantic search" fg="white" />
+          </box>
+          <box style={{ paddingLeft: 2 }}>
+            <text content="• Context-aware edits" fg="white" />
+          </box>
+          <box style={{ marginTop: 1, paddingLeft: 1 }}>
+            <text content="Click anywhere or Esc to close" fg="gray" italic />
           </box>
         </box>
       )}
@@ -3735,10 +6711,10 @@ async function main(): Promise<void> {
     exitOnCtrlC: false, // We handle Ctrl+C manually
     useMouse: true, // Enable mouse tracking so scroll wheel doesn't trigger arrow keys
     useKittyKeyboard: null, // Disabled - was causing issues
-    useAlternateScreen: false, // Try without alternate screen
+    useAlternateScreen: false, // Prevents alternate screen buffer for less disruption
     useThread: false, // Disable native threading - might cause event loop blocking
-    targetFps: 30,
-    debounceDelay: 50
+    targetFps: 24, // Reduced from 30 to minimize screen redraws
+    debounceDelay: 100 // Increased from 50 to batch more updates together
   });
   startupTimings.renderer = Date.now() - rendererStart;
   debugLog(`Renderer created in ${startupTimings.renderer}ms`);
@@ -3843,14 +6819,16 @@ async function main(): Promise<void> {
   startupTimings.preRender = Date.now() - startTime;
   debugLog(`Rendering app... (${startupTimings.preRender}ms since start)`);
   debugLog(`stdin state before render: paused=${process.stdin.isPaused()}, destroyed=${process.stdin.destroyed}, readable=${process.stdin.readable}, isTTY=${process.stdin.isTTY}, isRaw=${(process.stdin as any).isRaw}`);
-  console.log(`⏱️ Startup: session=${startupTimings.sessionSelection}ms, renderer=${startupTimings.renderer}ms, total=${startupTimings.preRender}ms`);
+  debugLog(`⏱️ Startup: session=${startupTimings.sessionSelection}ms, renderer=${startupTimings.renderer}ms, total=${startupTimings.preRender}ms`);
 
   const root = createRoot(renderer);
+  const authType: 'oauth' | 'api-key' = oauthToken ? 'oauth' : 'api-key';
   root.render(
     <ChatApp
       apiKey={apiKey || undefined}
       oauthToken={oauthToken || undefined}
       resumeSession={resumeSession}
+      authType={authType}
     />
   );
   debugLog('App rendered (createRoot + render called)');

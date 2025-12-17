@@ -67,7 +67,8 @@ const SMART_OPUS_MODEL_ID = 'claude-opus-4-5-20251101';
 const MODEL_BY_PREFERENCE: Record<ModelPreference, string> = {
   fast: FAST_MODEL_ID,
   'smart-sonnet': SMART_SONNET_MODEL_ID,
-  'smart-opus': SMART_OPUS_MODEL_ID
+  'smart-opus': SMART_OPUS_MODEL_ID,
+  auto: FAST_MODEL_ID // Auto mode defaults to fast (haiku) - orchestrator selects appropriate model
 };
 
 function getModelId(preference: ModelPreference = 'fast'): string {
