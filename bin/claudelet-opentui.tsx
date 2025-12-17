@@ -3007,6 +3007,8 @@ const ChatApp: React.FC<{
   const [kittDirection, setKittDirection] = useState<'right' | 'left'>('right');
   const [kittPauseFrames, setKittPauseFrames] = useState(0); // Pause at edges
   const kittWidth = 8; // Width of the KITT animation bar
+  // Theme search
+  const [themeSearch, setThemeSearch] = useState('');
   // Preview theme for live preview while scrolling through themes
   const [previewTheme, setPreviewTheme] = useState<Theme | null>(null);
   // Active theme is either the preview (while browsing) or the selected theme
@@ -4660,25 +4662,39 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
       return;
     }
 
-    // Handle Theme Picker navigation with live preview
+    // Handle Theme Picker search typing
+    if (state.showThemePicker && key.sequence && !key.ctrl && !key.meta) {
+      if (key.name === 'backspace') {
+        setThemeSearch(prev => prev.slice(0, -1));
+        return;
+      }
+      // Only allow alphanumeric, space, dash, and underscore
+      if (key.sequence.match(/^[a-zA-Z0-9 \-_]$/)) {
+        setThemeSearch(prev => prev + key.sequence);
+        return;
+      }
+    }
+
+    // Handle Theme Picker navigation with live preview (use filtered list)
     if (state.showThemePicker && (key.name === 'up' || key.name === 'down')) {
+      const filteredThemes = DEFAULT_THEMES.filter(t =>
+        t.name.toLowerCase().includes(themeSearch.toLowerCase())
+      );
+      const currentIdx = filteredThemes.findIndex(t => t.name === state.currentTheme.name);
       const newIndex = key.name === 'up'
-        ? (state.selectedThemeIndex - 1 + DEFAULT_THEMES.length) % DEFAULT_THEMES.length
-        : (state.selectedThemeIndex + 1) % DEFAULT_THEMES.length;
-      setPreviewTheme(DEFAULT_THEMES[newIndex]); // Live preview
-      updateState({ selectedThemeIndex: newIndex });
+        ? (currentIdx - 1 + filteredThemes.length) % filteredThemes.length
+        : (currentIdx + 1) % filteredThemes.length;
+      const selectedTheme = filteredThemes[newIndex];
+      setPreviewTheme(selectedTheme);
+      updateState({ currentTheme: selectedTheme });
       return;
     }
 
     // Handle Theme Picker selection
     if (state.showThemePicker && (key.name === 'return' || key.name === 'space')) {
-      const selectedTheme = DEFAULT_THEMES[state.selectedThemeIndex];
-      setPreviewTheme(null); // Clear preview
-      saveThemeName(selectedTheme.name); // Persist theme choice
-      updateState({
-        currentTheme: selectedTheme,
-        showThemePicker: false
-      });
+      setPreviewTheme(null);
+      setThemeSearch('');
+      updateState({ showThemePicker: false });
       return;
     }
 
@@ -5911,21 +5927,14 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
           />
         )}
         <text content=" | " fg={activeTheme.colors.separator} />
-        {/* Mode selector - responsive (full labels when wide, compact when narrow) */}
-        {terminalSize.columns >= 100 && <text content="Mode: " fg={activeTheme.colors.muted} />}
+        {/* Mode selector */}
+        <text content="Mode: " fg={activeTheme.colors.muted} />
         <text
           content={
-            terminalSize.columns >= 100 ? (
-              state.thinkingSessions.some(s => !s.endTime) ? 'Thinking' :
-              state.currentTool ? 'Tool Use' :
-              state.isResponding ? 'Responding' :
-              state.agentMode === 'coding' ? 'Coding' : 'Planning'
-            ) : (
-              state.thinkingSessions.some(s => !s.endTime) ? 'THINK' :
-              state.currentTool ? 'TOOL' :
-              state.isResponding ? 'RESP' :
-              state.agentMode === 'coding' ? 'CODE' : 'PLAN'
-            )
+            state.thinkingSessions.some(s => !s.endTime) ? 'Thinking' :
+            state.currentTool ? 'Tool Use' :
+            state.isResponding ? 'Responding' :
+            state.agentMode === 'coding' ? 'Coding' : 'Planning'
           }
           fg={
             state.activeStatusPopup === 'mode' ? activeTheme.colors.highlight :
@@ -6243,19 +6252,24 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
 
       {/* Theme Picker Dialog - centered and responsive */}
       {state.showThemePicker && (() => {
-        const dialogWidth = 50;
-        // Calculate max visible themes based on terminal height (leave room for border, header, scroll indicators)
-        const maxVisibleThemes = Math.min(DEFAULT_THEMES.length, Math.max(5, terminalSize.rows - 10));
-        const dialogHeight = maxVisibleThemes + 4;
+        const dialogWidth = 25;
+        const maxVisibleThemes = 12;
+        const dialogHeight = maxVisibleThemes + 5; // +5 for header, search input, borders
         const centerLeft = Math.max(0, Math.floor((terminalSize.columns - dialogWidth) / 2));
         const centerTop = Math.max(0, Math.floor((terminalSize.rows - dialogHeight) / 2));
 
+        // Filter themes by search
+        const filteredThemes = DEFAULT_THEMES.filter(t =>
+          t.name.toLowerCase().includes(themeSearch.toLowerCase())
+        );
+
         // Calculate scroll window
-        const selectedIdx = state.selectedThemeIndex;
-        const scrollStart = Math.max(0, Math.min(selectedIdx - Math.floor(maxVisibleThemes / 2), DEFAULT_THEMES.length - maxVisibleThemes));
-        const visibleThemes = DEFAULT_THEMES.slice(scrollStart, scrollStart + maxVisibleThemes);
+        const selectedIdx = filteredThemes.findIndex(t => t.name === state.currentTheme.name);
+        const safeSelectedIdx = selectedIdx === -1 ? 0 : selectedIdx;
+        const scrollStart = Math.max(0, Math.min(safeSelectedIdx - Math.floor(maxVisibleThemes / 2), filteredThemes.length - maxVisibleThemes));
+        const visibleThemes = filteredThemes.slice(scrollStart, scrollStart + maxVisibleThemes);
         const hasScrollUp = scrollStart > 0;
-        const hasScrollDown = scrollStart + maxVisibleThemes < DEFAULT_THEMES.length;
+        const hasScrollDown = scrollStart + maxVisibleThemes < filteredThemes.length;
 
         return (
           <box
@@ -6273,27 +6287,34 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
             borderStyle="rounded"
             borderColor={activeTheme.colors.border}
           >
-            {/* Header row with title, scroll indicator, and close button */}
-            <box style={{ flexDirection: 'row', justifyContent: 'space-between', paddingLeft: 1, paddingRight: 1, marginBottom: 1 }}>
+            {/* Header row */}
+            <box style={{ flexDirection: 'row', justifyContent: 'space-between', paddingLeft: 1, paddingRight: 1 }}>
               <text content="Themes" fg={activeTheme.colors.muted} bold />
+              <text
+                content="×"
+                fg={activeTheme.colors.muted}
+                onMouseUp={() => {
+                  updateState({ showThemePicker: false });
+                  setPreviewTheme(null);
+                  setThemeSearch('');
+                }}
+              />
+            </box>
+            {/* Search input */}
+            <box style={{ paddingLeft: 1, paddingRight: 1, marginBottom: 1 }}>
+              <text content="Search: " fg={activeTheme.colors.muted} />
+              <text content={themeSearch || '_'} fg={activeTheme.colors.secondary} />
+            </box>
+            {/* Scroll indicators */}
+            <box style={{ paddingLeft: 1, paddingRight: 1, flexDirection: 'row', justifyContent: 'space-between' }}>
+              <text content={`${filteredThemes.length} themes`} fg={activeTheme.colors.muted} />
               <box style={{ flexDirection: 'row' }}>
                 {hasScrollUp && <text content="↑" fg={activeTheme.colors.secondary} />}
                 {hasScrollDown && <text content="↓" fg={activeTheme.colors.secondary} />}
-                <text content=" " />
-                <text
-                  content="×"
-                  fg={activeTheme.colors.muted}
-                  onMouseUp={() => {
-                    updateState({ showThemePicker: false });
-                    setPreviewTheme(null);
-                  }}
-                />
               </box>
             </box>
-            {/* Theme list - scrollable window */}
+            {/* Theme list - scrollable, single column */}
             {visibleThemes.map((theme) => {
-              const actualIdx = DEFAULT_THEMES.indexOf(theme);
-              const isSelected = state.selectedThemeIndex === actualIdx;
               const isCurrent = state.currentTheme.name === theme.name;
               return (
                 <box
@@ -6304,31 +6325,26 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                     flexDirection: 'row'
                   }}
                   onMouseUp={() => {
-                    saveThemeName(theme.name); // Persist theme choice
+                    saveThemeName(theme.name);
                     updateState({
                       currentTheme: theme,
-                      selectedThemeIndex: actualIdx,
                       showThemePicker: false
                     });
                     setPreviewTheme(null);
+                    setThemeSearch('');
                   }}
                   onMouseEnter={() => {
                     setPreviewTheme(theme);
-                    updateState({ selectedThemeIndex: actualIdx });
                   }}
                 >
                   <text
-                    content={isSelected ? '▸ ' : '  '}
-                    fg={isSelected ? theme.colors.primary : activeTheme.colors.muted}
+                    content={isCurrent ? '▸ ' : '  '}
+                    fg={isCurrent ? theme.colors.primary : activeTheme.colors.muted}
                   />
                   <text
-                    content={theme.name.padEnd(14)}
-                    fg={isSelected ? theme.colors.primary : activeTheme.colors.muted}
-                    bold={isSelected}
-                  />
-                  <text
-                    content={theme.description.substring(0, 18).padEnd(18)}
-                    fg={isSelected ? activeTheme.colors.assistantMessage : activeTheme.colors.muted}
+                    content={theme.name}
+                    fg={isCurrent ? theme.colors.primary : activeTheme.colors.muted}
+                    bold={isCurrent}
                   />
                   <text content={isCurrent ? ' ✓' : ''} fg={theme.colors.accent} />
                 </box>
