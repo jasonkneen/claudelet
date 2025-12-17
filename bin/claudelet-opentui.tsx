@@ -357,6 +357,7 @@ interface AppState {
   aiTools?: AiToolsService;
   agentMode: 'coding' | 'planning'; // Current agent mode
   chipDisplayStyle: 'inline' | 'boxes'; // How to display tool chips
+  greyOutFinishedTools: boolean; // Whether to grey out finished tools
   contextChips: ContextChip[]; // Active context chips that apply to all messages
   // Orchestration state
   orchestration?: OrchestrationContext;
@@ -380,7 +381,7 @@ interface ToolActivity {
  * Extract tool activity from messages, grouped by tool name
  * Returns one entry per tool type with count and active state
  */
-function extractToolActivity(messages: Message[]): ToolActivity[] {
+function extractToolActivity(messages: Message[], greyOutFinishedTools: boolean = true): ToolActivity[] {
   // Filter for tool messages
   const toolMessages = messages.filter((m) => m.role === 'tool' && m.toolName);
 
@@ -395,8 +396,8 @@ function extractToolActivity(messages: Message[]): ToolActivity[] {
     const toolName = msg.toolName!;
     const existing = toolMap.get(toolName);
 
-    // Tool is active if it has no result yet
-    const isToolActive = msg.toolResult === undefined;
+    // Tool is active if it has no result yet (or if greying out is disabled)
+    const isToolActive = greyOutFinishedTools ? msg.toolResult === undefined : true;
 
     if (existing) {
       existing.count += 1;
@@ -559,7 +560,8 @@ function getCommandCompletions(prefix: string): string[] {
     '/search',
     '/diagnose',
     '/apply',
-    '/patch-model'
+    '/patch-model',
+    '/toggle-grey-tools'
   ];
 
   return commands.filter((cmd) => cmd.startsWith(prefix));
@@ -910,6 +912,7 @@ const ChatApp: React.FC<{
     outputTokens: resumeSession?.outputTokens || 0,
     agentMode: 'coding',
     chipDisplayStyle: (process.env.CHIP_DISPLAY_STYLE === 'boxes' ? 'boxes' : 'inline') as 'inline' | 'boxes',
+    greyOutFinishedTools: true, // Default: grey out finished tools
     contextChips: [], // Active context chips (transient, not persisted)
     // Orchestration state
     orchestration: undefined,
@@ -1668,6 +1671,7 @@ You cannot invoke these slash commands yourself directly via tool calls; they mu
 /model <name>   - Switch model (fast/haiku/sonnet/opus)
 /sessions       - List saved sessions
 /logout         - Clear authentication
+/toggle-grey-tools - Toggle greying out finished tools
 
 [AI Tools]:
 /search <query> - Semantic code search (MGrep)
@@ -2089,6 +2093,25 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
             }
           ]
         }));
+        return;
+      }
+
+      // Handle /toggle-grey-tools
+      if (displayText === '/toggle-grey-tools') {
+        updateState((prev) => {
+          const newSetting = !prev.greyOutFinishedTools;
+          return {
+            greyOutFinishedTools: newSetting,
+            messages: [
+              ...prev.messages,
+              {
+                role: 'system',
+                content: `[+] Grey out finished tools: ${newSetting ? 'enabled' : 'disabled'}`,
+                timestamp: new Date()
+              }
+            ]
+          };
+        });
         return;
       }
 
@@ -2869,7 +2892,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
   }, [state.messages, state.messageScrollOffset, terminalSize]);
 
   // Compute grouped tool activity for chips display
-  const toolActivity = useMemo(() => extractToolActivity(state.messages), [state.messages]);
+  const toolActivity = useMemo(() => extractToolActivity(state.messages, state.greyOutFinishedTools), [state.messages, state.greyOutFinishedTools]);
 
   return (
     <box style={{ flexDirection: 'column', height: '100%' }}>
