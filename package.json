@@ -14,6 +14,9 @@
   "files": [
     "dist",
     "bin",
+    "packages/*/dist",
+    "packages/*/package.json",
+    "packages/*/README.md",
     "README.md",
     "LICENSE"
   ],
@@ -43,18 +46,26 @@
     "message-queue",
     "smart-queue"
   ],
-  "author": "Your Name",
+  "author": "jasonkneen",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jasonkneen/claudelet.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jasonkneen/claudelet/issues"
+  },
+  "homepage": "https://github.com/jasonkneen/claudelet#readme",
   "dependencies": {
-    "@ai-cluso/fast-apply": "workspace:*",
-    "@ai-cluso/lsp-client": "workspace:*",
-    "@ai-cluso/mgrep-local": "workspace:*",
+    "@ai-cluso/fast-apply": "file:./packages/fast-apply",
+    "@ai-cluso/lsp-client": "file:./packages/lsp",
+    "@ai-cluso/mgrep-local": "file:./packages/mgrep-local",
     "@opentui/core": "^0.1.60",
     "@opentui/react": "^0.1.57",
     "@types/react": "^19.2.7",
     "ansi-colors": "^4.1.3",
     "chokidar": "^5.0.0",
-    "claude-agent-loop": "workspace:*",
+    "claude-agent-loop": "file:./packages/claude-agent-loop",
     "highlight.js": "^11.11.1",
     "ink": "^6.5.1",
     "ink-text-input": "^6.0.0",

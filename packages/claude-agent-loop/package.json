@@ -11,6 +11,9 @@
       "types": "./dist/index.d.ts"
     }
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc",
@@ -21,7 +24,6 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@anthropic-ai/anthropic-oauth": "workspace:*",
     "@anthropic-ai/claude-agent-sdk": "^0.1.51",
     "@types/react": "^19.2.7",
     "ink": "^6.5.1",
