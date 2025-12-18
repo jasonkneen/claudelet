@@ -5822,7 +5822,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                     <text content={cursorVisible ? '█' : ' '} fg="gray" />
                     <text
                       content=" Type your message... (Tab: complete, ↑↓: history, Ctrl+X×2: stop, Ctrl+C: quit)"
-                      fg="gray"
+                      fg="blackBright"
                     />
                   </>
                 );
