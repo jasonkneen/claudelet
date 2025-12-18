@@ -5316,10 +5316,10 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                   <box
                     border={true}
                     borderStyle="rounded"
-                    borderColor={activeTheme.colors.border}
+                    borderColor={activeTheme.colors.muted}
                     style={{ paddingLeft: 1, paddingRight: 1, paddingTop: 0, paddingBottom: 0, flexGrow: 1, minHeight: 3 }}
                     bg="blackBright"
-                    label={showHeader && modelDisplay ? ` ${modelDisplay} ` : undefined}
+                    label={showHeader ? ` Assistant ${modelDisplay ? `• ${modelDisplay}` : ''} ` : undefined}
                     labelPosition="left"
                   >
                      {contentToRender ? renderMarkdown(contentToRender) : null}
@@ -5944,13 +5944,13 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
         )}
         <text content=" |" fg={activeTheme.colors.separator} />
         {/* Mode selector */}
-        <text content="" fg={activeTheme.colors.muted} />
+        <text content="    " fg={activeTheme.colors.muted} />
         <text
           content={
-            state.thinkingSessions.some(s => !s.endTime) ? ' THINKING ' :
-            state.currentTool ? 'Tool Use' :
-            state.isResponding ? 'RESPONDING' :
-            state.agentMode === 'coding' ? '   CODE   ' : '   PLAN   '  
+            state.thinkingSessions.some(s => !s.endTime) ? '  THINKING  ' :
+            state.currentTool ? '  TOOL USE  ' :
+            state.isResponding ? ' RESPONDING ' :
+            state.agentMode === 'coding' ? '   CODING   ' : '  PLANNING  '  
           }
           fg={
             state.activeStatusPopup === 'mode' ? activeTheme.colors.highlight :
