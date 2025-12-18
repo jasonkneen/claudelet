@@ -62,21 +62,21 @@ function getColorForClass(className: string): string {
 /**
  * Render inline tokens (bold, italic, code, text, etc.)
  */
-function renderInlineToken(token: Token, key: string): React.ReactNode {
+function renderInlineToken(token: Token, key: string, defaultColor: string = 'white'): React.ReactNode {
   switch (token.type) {
     case 'text': {
       const textToken = token as marked.Tokens.Text;
-      return <text key={key} content={textToken.text} fg="white" />;
+      return <text key={key} content={textToken.text} fg={defaultColor as any} />;
     }
 
     case 'strong': {
       const strongToken = token as marked.Tokens.Strong;
-      return <text key={key} content={strongToken.text} fg="white" bold />;
+      return <text key={key} content={strongToken.text} fg={defaultColor as any} bold />;
     }
 
     case 'em': {
       const emToken = token as marked.Tokens.Em;
-      return <text key={key} content={emToken.text} fg="white" italic />;
+      return <text key={key} content={emToken.text} fg={defaultColor as any} italic />;
     }
 
     case 'codespan': {
@@ -95,7 +95,7 @@ function renderInlineToken(token: Token, key: string): React.ReactNode {
 
     default: {
       const text = 'text' in token ? (token as any).text : '';
-      return text ? <text key={key} content={text} fg="white" /> : null;
+      return text ? <text key={key} content={text} fg={defaultColor as any} /> : null;
     }
   }
 }
@@ -103,7 +103,7 @@ function renderInlineToken(token: Token, key: string): React.ReactNode {
 /**
  * Render a single token as OpenTUI text element(s)
  */
-function renderToken(token: Token, key: string): React.ReactNode {
+function renderToken(token: Token, key: string, defaultColor: string = 'white'): React.ReactNode {
   switch (token.type) {
     case 'heading': {
       const headingToken = token as marked.Tokens.Heading;
@@ -130,7 +130,7 @@ function renderToken(token: Token, key: string): React.ReactNode {
             return (
               <box key={`code-line-${key}-${i}`} style={{ flexDirection: 'row' }}>
                 {segments.map((seg, j) => (
-                  <text key={`seg-${key}-${i}-${j}`} content={seg.text} fg={seg.color as any} />
+                  <text key={`seg-${key}-${i}-${j}`} content={seg.text} fg={seg.color === 'white' ? defaultColor as any : seg.color as any} />
                 ))}
               </box>
             );
@@ -145,7 +145,7 @@ function renderToken(token: Token, key: string): React.ReactNode {
       return (
         <box key={key} style={{ flexDirection: 'column', marginLeft: 2 }}>
           <text content="│" fg="gray" />
-          {blockquoteToken.tokens.map((t, i) => renderToken(t, `${key}-bq-${i}`))}
+          {blockquoteToken.tokens.map((t, i) => renderToken(t, `${key}-bq-${i}`, defaultColor))}
         </box>
       );
     }
@@ -159,7 +159,7 @@ function renderToken(token: Token, key: string): React.ReactNode {
             return (
               <box key={`${key}-li-${i}`} style={{ flexDirection: 'row' }}>
                 <text content={`${bullet} `} fg="yellow" />
-                <text content={item.text} fg="white" />
+                <text content={item.text} fg={defaultColor as any} />
               </box>
             );
           })}
@@ -173,13 +173,13 @@ function renderToken(token: Token, key: string): React.ReactNode {
       if ('tokens' in paragraphToken && paragraphToken.tokens) {
         return (
           <box key={key} style={{ flexDirection: 'row', marginTop: 0, flexWrap: 'wrap' }}>
-            {paragraphToken.tokens.map((t, i) => renderInlineToken(t, `${key}-inline-${i}`))}
+            {paragraphToken.tokens.map((t, i) => renderInlineToken(t, `${key}-inline-${i}`, defaultColor))}
           </box>
         );
       }
       return (
         <box key={key} style={{ marginTop: 0 }}>
-          <text content={paragraphToken.text} fg="white" />
+          <text content={paragraphToken.text} fg={defaultColor as any} />
         </box>
       );
     }
@@ -194,7 +194,7 @@ function renderToken(token: Token, key: string): React.ReactNode {
       if (text) {
         return (
           <box key={key}>
-            <text content={text} fg="white" />
+            <text content={text} fg={defaultColor as any} />
           </box>
         );
       }
@@ -206,17 +206,17 @@ function renderToken(token: Token, key: string): React.ReactNode {
 /**
  * Parse and render markdown content for OpenTUI
  */
-export function renderMarkdown(content: string): React.ReactNode {
+export function renderMarkdown(content: string, defaultColor: string = 'white'): React.ReactNode {
   try {
     const tokens = marked.lexer(content);
     return (
       <box style={{ flexDirection: 'column' }}>
-        {tokens.map((token, i) => renderToken(token, `token-${i}`))}
+        {tokens.map((token, i) => renderToken(token, `token-${i}`, defaultColor))}
       </box>
     );
   } catch (err) {
     // Fallback to plain text if parsing fails
-    return <text content={content} fg="white" />;
+    return <text content={content} fg={defaultColor as any} />;
   }
 }
 

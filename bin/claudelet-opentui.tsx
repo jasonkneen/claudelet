@@ -2702,7 +2702,7 @@ const SubAgentTaskBox: React.FC<{
   <box
     style={{
       border: 'single',
-      borderColor: 'magenta',
+      borderColor: 'gray',
       marginLeft: 2,
       marginBottom: 1
     }}
@@ -2710,8 +2710,8 @@ const SubAgentTaskBox: React.FC<{
   >
     {/* Header - always visible */}
     <box style={{ flexDirection: 'row', paddingLeft: 1, paddingRight: 1 }}>
-      <text content={isExpanded ? '[-]' : '[+]'} fg="magenta" />
-      <text content={` ${agent.id} `} fg="white" bold />
+      <text content={isExpanded ? '[-]' : '[+]'} fg="gray" />
+      <text content={` ${agent.id} `} fg="gray" />
       <text content={`(${agent.model})`} fg="gray" />
       <text content=" | " fg="gray" />
       <text
@@ -2731,7 +2731,7 @@ const SubAgentTaskBox: React.FC<{
     {/* Expanded content - live progress */}
     {isExpanded && (
       <box style={{ paddingLeft: 3, paddingTop: 1 }}>
-        <text content={agent.currentTask || 'Waiting...'} fg="white" />
+        <text content={agent.currentTask || 'Waiting...'} fg="gray" />
         {agent.progress && (
           <text content={agent.progress.message} fg="gray" />
         )}
@@ -5316,13 +5316,13 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                   <box
                     border={true}
                     borderStyle="rounded"
-                    borderColor={activeTheme.colors.muted}
+                    borderColor="gray"
                     style={{ paddingLeft: 1, paddingRight: 1, paddingTop: 0, paddingBottom: 0, flexGrow: 1, minHeight: 3 }}
                     bg="blackBright"
                     label={showHeader ? ` Assistant ${modelDisplay ? `• ${modelDisplay}` : ''} ` : undefined}
                     labelPosition="left"
                   >
-                     {contentToRender ? renderMarkdown(contentToRender) : null}
+                     {contentToRender ? renderMarkdown(contentToRender, 'gray') : null}
                   </box>
                 </box>
               );
