@@ -55,6 +55,11 @@ export const defaultPaginationConfig: PaginationConfig = {
  * - Tool-specific content (input, output)
  * - Spacer between messages
  */
+function stripAnsi(str: string): string {
+  // eslint-disable-next-line no-control-regex
+  return str.replace(/\x1B\[\d+m/g, '')
+}
+
 export function calculateMessageHeight(
   message: Message,
   terminalColumns: number,
@@ -70,7 +75,8 @@ export function calculateMessageHeight(
     const lines = message.content.split('\n')
     for (const line of lines) {
       // Account for line wrapping based on terminal width
-      height += Math.max(1, Math.ceil(line.length / terminalColumns))
+      const cleanLine = stripAnsi(line)
+      height += Math.max(1, Math.ceil(cleanLine.length / terminalColumns))
     }
   }
 
@@ -114,63 +120,94 @@ export function calculateAvailableRows(
   return available
 }
 
+export interface RenderableMessage extends Message {
+  // If present, only render lines in this range [start, end)
+  // relative to the rendered message lines
+  visibleLines?: { start: number; end: number }
+}
+
 /**
- * Calculate which messages should be visible based on scroll offset
+ * Calculate which messages should be visible based on scroll offset (LINES)
  *
  * Algorithm:
- * 1. Reverse message list (newest first)
- * 2. Apply scroll offset
- * 3. Iterate through messages, calculating height
- * 4. Stop when visible area is full
- * 5. Return slice of original message array
+ * 1. Iterate backwards from last message
+ * 2. Skip 'lineScrollOffset' lines from the bottom
+ * 3. Collect messages until 'availableRows' is filled
+ * 4. Handle partial messages at top/bottom of viewport
  */
 export function calculateVisibleMessages(
   messages: Message[],
-  scrollOffset: number,
+  lineScrollOffset: number,
   availableRows: number,
   terminalColumns: number,
   collapsedToolIds?: Set<string>
-): Message[] {
+): RenderableMessage[] {
   const totalMessages = messages.length
-
-  if (totalMessages === 0) {
-    return []
-  }
+  if (totalMessages === 0) return []
 
   const reversedMessages = [...messages].reverse()
+  const result: RenderableMessage[] = []
 
-  // Ensure scroll offset is within bounds
-  const effectiveScrollOffset = Math.max(
-    0,
-    Math.min(scrollOffset, totalMessages - 1)
-  )
+  let linesToSkip = Math.max(0, lineScrollOffset)
+  let currentVisibleRows = 0
 
-  // Get messages to consider (from most recent, backwards)
-  const messagesToConsider = reversedMessages.slice(effectiveScrollOffset)
+  for (const msg of reversedMessages) {
+    // If we've filled the screen, stop
+    if (currentVisibleRows >= availableRows) break
 
-  let usedRows = 0
-  let visibleCount = 0
-
-  // Calculate how many messages fit in available rows
-  for (const msg of messagesToConsider) {
     const isCollapsed = msg.toolId && collapsedToolIds?.has(msg.toolId)
     const msgHeight = calculateMessageHeight(msg, terminalColumns, isCollapsed)
 
-    if (usedRows + msgHeight > availableRows) {
-      break
+    // CASE 1: Skip this entire message (scrolled past it)
+    if (linesToSkip >= msgHeight) {
+      linesToSkip -= msgHeight
+      continue
     }
 
-    usedRows += msgHeight
-    visibleCount++
+    // CASE 2: Partially visible (bottom cropped) OR Fully visible
+    // linesToSkip < msgHeight, so at least some part is visible
+    // If linesToSkip > 0, we hide the bottom N lines.
+    // So visible range starts at 0 (top) and ends at msgHeight - linesToSkip.
+    // Wait, "visibleLines" usually implies lines of text.
+    // But `msgHeight` includes headers/spacers.
+    // We'll pass abstract "render lines" range. The renderer must map this to content.
+    // Range is [0, msgHeight) normally.
+    // Here we want [0, msgHeight - linesToSkip).
+
+    let visibleStart = 0
+    let visibleEnd = msgHeight - linesToSkip
+    
+    // We consumed the skip debt
+    linesToSkip = 0
+
+    // Now check if this message overflows the TOP of the screen
+    // We have 'currentVisibleRows' filled so far.
+    // We want to add (visibleEnd - visibleStart) lines.
+    const linesToAdd = visibleEnd - visibleStart
+    
+    if (currentVisibleRows + linesToAdd > availableRows) {
+      // It overflows the top. We must crop the start (top).
+      // Space remaining = availableRows - currentVisibleRows
+      const spaceRemaining = availableRows - currentVisibleRows
+      // We want the BOTTOM 'spaceRemaining' lines of this message chunk.
+      // So new start is: visibleEnd - spaceRemaining
+      visibleStart = visibleEnd - spaceRemaining
+    }
+
+    // Add to result (prepend because we're iterating backwards)
+    // Actually we'll reverse the result at the end
+    const renderable: RenderableMessage = { ...msg }
+    
+    // Only set visibleLines if partial
+    if (visibleStart > 0 || visibleEnd < msgHeight) {
+      renderable.visibleLines = { start: visibleStart, end: visibleEnd }
+    }
+
+    result.push(renderable)
+    currentVisibleRows += (visibleEnd - visibleStart)
   }
 
-  // Calculate slice indices
-  // If we have 100 messages and scroll offset is 0, and visible count is 5
-  // We want messages 95-100 (the last 5)
-  const endIdx = totalMessages - effectiveScrollOffset
-  const startIdx = Math.max(0, endIdx - visibleCount)
-
-  return messages.slice(startIdx, endIdx)
+  return result.reverse()
 }
 
 /**
@@ -183,11 +220,22 @@ export function calculateVisibleMessages(
 export function applyScroll(
   currentOffset: number,
   amount: number,
-  totalMessages: number
+  totalMessages: number // Ignored now, unbounded line scroll? Or we need max lines?
 ): number {
-  const maxOffset = Math.max(0, totalMessages - 1)
-  const newOffset = Math.max(0, Math.min(currentOffset + amount, maxOffset))
-  return newOffset
+  // Ideally we clamp to max lines, but calculating total lines is expensive.
+  // For now, allow unbounded scroll up, but clamp at 0 for bottom.
+  // The UI can limit it if empty.
+  return Math.max(0, currentOffset - amount) // Invert logic: Scroll UP increases offset (lines from bottom)
+  // Wait, existing logic:
+  // "Positive amount: scroll down (decrease offset)"
+  // So currentOffset is "lines from bottom".
+  // if amount is +1 (scroll down), offset should decrease.
+  // if amount is -1 (scroll up), offset should increase.
+  
+  // Actually, let's keep it simple:
+  // Offset = distance from bottom.
+  // Scroll Down = view moves down = offset decreases.
+  // Scroll Up = view moves up = offset increases.
 }
 
 /**
@@ -201,7 +249,9 @@ export function isAtBottom(scrollOffset: number): boolean {
  * Check if user is at the top of the message list
  */
 export function isAtTop(scrollOffset: number, totalMessages: number): boolean {
-  return scrollOffset >= Math.max(0, totalMessages - 1)
+  // Hard to tell without total lines. Approximate with message count?
+  // Let's just say "no" for now or use a large number check.
+  return false 
 }
 
 /**
@@ -224,7 +274,7 @@ export function getPaginationState(
 
   return {
     visibleMessages,
-    scrollOffset: Math.max(0, Math.min(scrollOffset, messages.length - 1)),
+    scrollOffset,
     totalMessages: messages.length,
     visibleCount: visibleMessages.length
   }

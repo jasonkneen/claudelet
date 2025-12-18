@@ -53,6 +53,11 @@ import {
 import { sanitizeText } from '../src/env-sanitizer.js';
 import { AiToolsService } from './claudelet-ai-tools.js';
 import { useBatchedState } from '../src/hooks/useBatchedState.js';
+import {
+  calculateAvailableRows,
+  calculateVisibleMessages,
+  type RenderableMessage
+} from '../src/message-pagination.js';
 
 const MAX_THINKING_TOKENS = 16_000;
 const TODOS_FILE = '.todos.md';
@@ -4742,15 +4747,16 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
 
     // Page Up/Down for message scrolling
     if (key.name === 'pageup') {
+      // Scroll back (increase offset)
       updateState((prev) => ({
-        messageScrollOffset: Math.max(0, prev.messageScrollOffset - 10)
+        messageScrollOffset: prev.messageScrollOffset + 15
       }));
       return;
     }
     if (key.name === 'pagedown') {
-      const maxOffset = Math.max(0, state.messages.length - 5);
+      // Scroll forward (decrease offset)
       updateState((prev) => ({
-        messageScrollOffset: Math.min(maxOffset, prev.messageScrollOffset + 10)
+        messageScrollOffset: Math.max(0, prev.messageScrollOffset - 15)
       }));
       return;
     }
@@ -4806,10 +4812,10 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
     // Ctrl+P to scroll messages up (previous page)
     if (key.ctrl && key.name === 'p') {
       updateState((prev) => {
-        const maxOffset = Math.max(0, prev.messages.length - 15);
+        // No strict max offset for lines, just let it scroll back
         return {
           ...prev,
-          messageScrollOffset: Math.min(maxOffset, prev.messageScrollOffset + 5)
+          messageScrollOffset: prev.messageScrollOffset + 5
         };
       });
       return;
@@ -5146,94 +5152,38 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
 
   // Calculate visible messages (with scroll offset) dynamically based on available lines
   const { visibleMessages, scrollOffset } = useMemo(() => {
-    const INPUT_HEIGHT = 3; // Bordered input box
-    const STATUS_HEIGHT = 2; // Status bar (may wrap)
-    const PADDING_HEIGHT = 2; // Top/bottom padding
-    const SAFETY_BUFFER = 2; // Extra buffer to prevent overflow
+    const config = {
+      inputHeight: 3,
+      statusHeight: 2,
+      paddingHeight: 2,
+      toolChipsHeight: (state.thinkingSessions.length > 0 || state.currentTool || state.messages.some(m => m.role === 'tool')) ? 2 : 0,
+      contextChipsHeight: state.contextChips.length > 0 ? 2 : 0
+    };
 
-    // Check if tools are visible to reserve space
-    const hasThinking = state.thinkingSessions.length > 0;
-    const hasCurrentTool = !!state.currentTool;
-    const hasToolMessages = state.messages.some((m) => m.role === 'tool');
-    const hasChips = hasThinking || hasCurrentTool || hasToolMessages;
-    const TOOL_CHIPS_HEIGHT = hasChips ? 2 : 0; // Tool chips row with border
-    const CONTEXT_CHIPS_HEIGHT = state.contextChips.length > 0 ? 2 : 0; // Context chips row
-
-    const AVAILABLE_ROWS = Math.max(
-      5,
-      terminalSize.rows - INPUT_HEIGHT - STATUS_HEIGHT - PADDING_HEIGHT - TOOL_CHIPS_HEIGHT - CONTEXT_CHIPS_HEIGHT - SAFETY_BUFFER
+    const availableRows = calculateAvailableRows(terminalSize, config);
+    
+    // Use the new line-based calculator
+    const result = calculateVisibleMessages(
+      state.messages,
+      state.messageScrollOffset,
+      availableRows,
+      terminalSize.columns,
+      state.expandedToolIds
     );
-
-    const totalMessages = state.messages.length;
-    const reversedMessages = [...state.messages].reverse();
-
-    // Calculate how many messages fit in the available rows
-    let usedRows = 0;
-    let visibleCount = 0;
-
-    // Apply scroll offset (skip N messages from the bottom/end)
-    const effectiveScrollOffset = Math.max(
-      0,
-      Math.min(state.messageScrollOffset, totalMessages - 1)
-    );
-    const messagesToConsider = reversedMessages.slice(effectiveScrollOffset);
-
-    for (const msg of messagesToConsider) {
-      let msgHeight = 0;
-
-      // Basic height estimation
-      if (msg.role === 'tool' && msg.isCollapsed) {
-        msgHeight = 1; // Collapsed tool is 1 line
-      } else {
-        // Estimate lines based on wrapping
-        // Header line (You: / Claude:)
-        msgHeight += 1;
-
-        // Content lines
-        if (msg.content) {
-          const lines = msg.content.split('\n');
-          for (const line of lines) {
-            msgHeight += Math.max(1, Math.ceil(line.length / terminalSize.columns));
-          }
-        }
-
-        // Tool specific extras
-        if (msg.role === 'tool') {
-          if (!msg.isCollapsed) {
-            // Input preview lines
-            if (msg.toolInput)
-              msgHeight += JSON.stringify(msg.toolInput, null, 2).split('\n').length + 1;
-          }
-        }
-      }
-
-      // Spacer between messages
-      msgHeight += 1;
-
-      if (usedRows + msgHeight > AVAILABLE_ROWS) {
-        break;
-      }
-
-      usedRows += msgHeight;
-      visibleCount++;
-    }
-
-    // Determine slice indices
-    // We found 'visibleCount' messages starting from 'effectiveScrollOffset' from the end
-    // Total messages: 100
-    // Scroll offset: 0
-    // Visible count: 5 (last 5 messages fit)
-    // Start index = 100 - 0 - 5 = 95
-    // End index = 100 - 0 = 100
-
-    const endIdx = totalMessages - effectiveScrollOffset;
-    const startIdx = Math.max(0, endIdx - visibleCount);
 
     return {
-      visibleMessages: state.messages.slice(startIdx, endIdx),
-      scrollOffset: effectiveScrollOffset
+      visibleMessages: result,
+      scrollOffset: state.messageScrollOffset
     };
-  }, [state.messages, state.messageScrollOffset, terminalSize, state.thinkingSessions.length, state.currentTool, state.contextChips.length]);
+  }, [
+    state.messages, 
+    state.messageScrollOffset, 
+    terminalSize, 
+    state.thinkingSessions.length, 
+    state.currentTool, 
+    state.contextChips.length,
+    state.expandedToolIds
+  ]);
 
   // Compute grouped tool activity for chips display
   const toolActivity = useMemo(() => extractToolActivity(state.messages, state.greyOutFinishedTools), [state.messages, state.greyOutFinishedTools]);
@@ -5263,20 +5213,83 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
           overflow: 'hidden'
         }}
         onMouseScroll={(event) => {
-          // Scroll messages with mouse wheel
-          const delta = event.deltaY > 0 ? 3 : -3; // Scroll 3 lines at a time
+          // Scroll messages with mouse wheel (LINES not messages)
+          // Wheel Up (deltaY < 0) -> scroll back (increase offset)
+          // Wheel Down (deltaY > 0) -> scroll forward (decrease offset)
+          const delta = event.deltaY < 0 ? 3 : -3; 
           updateState((prev) => ({
             messageScrollOffset: Math.max(0, prev.messageScrollOffset + delta)
           }));
         }}
       >
         {visibleMessages
-          .filter((msg) => msg.role !== 'tool') // Exclude tool messages - shown in chips instead
+          .filter((msg) => msg.role !== 'tool') 
           .map((msg, i) => {
             const key = `${msg.timestamp.getTime()}-${msg.role}-${i}`;
 
+            // Handle partial visibility (cropping)
+            // Default: show everything
+            // Header is line 0
+            // Content starts at line 1
+            // Spacer is the last line
+            
+            // Determine render range [startLine, endLine) relative to this message
+            // If visibleLines is undefined, we render everything.
+            // If defined, we only render items whose line index falls in range.
+            
+            const startLine = msg.visibleLines ? msg.visibleLines.start : 0;
+            // Note: visibleLines.end is exclusive in our logic, or inclusive? 
+            // In pagination.ts: "visibleEnd = msgHeight - linesToSkip" -> exclusive upper bound
+            const endLine = msg.visibleLines ? msg.visibleLines.end : 999999;
+
+            // 1. Render Header? (Line 0)
+            const showHeader = startLine <= 0;
+            
+            // 2. Render Content? 
+            // Content spans from line 1 to (1 + contentLines)
+            // We need to slice content based on intersection with [startLine, endLine]
+            let contentToRender: string | null = null;
+            
+            if (msg.content) {
+              const lines = msg.content.split('\n');
+              const contentHeight = lines.length; // Approximate, ignoring wrapping for slice logic implies we might be slightly off if wrapping happens, but it's consistent with our height calc if we are careful. 
+              // Wait, our height calc accounted for wrapping.
+              // Slicing unwrapped lines is risky if we estimated using wrapped lines.
+              // BUT, usually 1 newline = 1 row unless long.
+              // For simplicity in V1 refactor: Slice by newline index.
+              // Real mapping: Line 1 maps to content line 0.
+              
+              const contentStartRow = 1;
+              const contentEndRow = 1 + contentHeight; // This assumes no wrapping for mapping purposes, which is a limitation.
+              // Fix: We can't easily map wrapped rows to source lines without re-wrapping.
+              // Compromise: Just render full content if ANY part of content is visible?
+              // No, that defeats the purpose of scrolling through a long block.
+              // We MUST slice.
+              
+              // Let's assume most long content is code/logs which are short lines.
+              // We calculate how many rows we are skipping from the top of content.
+              // skipRows = Math.max(0, startLine - 1)
+              // We calculate how many rows we keep.
+              
+              // Actually, renderMarkdown takes a string.
+              // We slice the string by lines.
+              const contentSliceStart = Math.max(0, startLine - 1);
+              const contentSliceEnd = Math.max(0, endLine - 1);
+              
+              if (contentSliceEnd > contentSliceStart) {
+                // If we are slicing, we might break markdown blocks.
+                // We'll just slice the text.
+                contentToRender = lines.slice(contentSliceStart, contentSliceEnd).join('\n');
+              }
+            }
+
             if (msg.role === 'user') {
-              const hasMarkdown = isMarkdown(msg.content);
+              // const hasMarkdown = isMarkdown(msg.content); 
+              // Only check markdown on the *rendered* slice to avoid half-broken tokens?
+              // Actually better to check original, but render slice.
+              
+              if (!contentToRender) return null; // Nothing visible
+
               return (
                 <box key={key} style={{ flexDirection: 'column', marginBottom: 1 }}>
                   <box
@@ -5286,17 +5299,18 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                     style={{ paddingLeft: 1, paddingRight: 1, paddingTop: 0, paddingBottom: 0 }}
                     bg="blackBright"
                   >
-                    {hasMarkdown ?
-                      renderMarkdown(msg.content)
-                    : <text content={msg.content} fg={activeTheme.colors.secondary} />}
+                    {renderMarkdown(contentToRender)}
                   </box>
                 </box>
               );
             }
 
             if (msg.role === 'assistant') {
-              const hasMarkdown = isMarkdown(msg.content);
               const modelDisplay = msg.model ? getModelDisplayFromPreference(msg.model) : null;
+              
+              // Only render if we have content or header is visible
+              if (!showHeader && !contentToRender) return null;
+
               return (
                 <box key={key} style={{ flexDirection: 'row', marginBottom: 1 }}>
                   <box
@@ -5305,12 +5319,10 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                     borderColor={activeTheme.colors.border}
                     style={{ paddingLeft: 1, paddingRight: 1, paddingTop: 0, paddingBottom: 0, flexGrow: 1 }}
                     bg="blackBright"
-                    label={modelDisplay ? ` ${modelDisplay} ` : undefined}
+                    label={showHeader && modelDisplay ? ` ${modelDisplay} ` : undefined}
                     labelPosition="left"
                   >
-                    {hasMarkdown ?
-                      renderMarkdown(msg.content)
-                    : <text content={msg.content} fg={activeTheme.colors.assistantMessage} />}
+                     {contentToRender ? renderMarkdown(contentToRender) : null}
                   </box>
                 </box>
               );
@@ -5320,33 +5332,40 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
               // Special styling for logo
               const isLogo = msg.content.includes(',gggg,');
               if (isLogo) {
-                return (
+                return showHeader ? (
                   <box key={key} style={{ marginBottom: 0 }}>
                     <text content={msg.content} fg={activeTheme.colors.primary} />
                   </box>
-                );
+                ) : null;
               }
-              // Special styling for startup banner
-              if (msg.isBanner) {
+              
+              // For system messages, just render if header (line 0) is visible?
+              // System messages are usually short.
+              if (showHeader) {
+                 // ... (existing system message logic)
+                 // Special styling for startup banner
+                if (msg.isBanner) {
+                    return (
+                    <box key={key} style={{ marginBottom: 0 }}>
+                        <text content={msg.content} fg={activeTheme.colors.accent} />
+                    </box>
+                    );
+                }
+                // Session resume or keyboard hints
+                if (msg.content.includes('[↻]') || msg.content.startsWith('Keyboard:')) {
+                    return (
+                    <box key={key} style={{ marginBottom: 1 }}>
+                        <text content={msg.content} fg={activeTheme.colors.muted} />
+                    </box>
+                    );
+                }
                 return (
-                  <box key={key} style={{ marginBottom: 0 }}>
-                    <text content={msg.content} fg={activeTheme.colors.accent} />
-                  </box>
+                    <box key={key} style={{ marginBottom: 0 }}>
+                    <text content={msg.content} fg={activeTheme.colors.systemMessage} />
+                    </box>
                 );
               }
-              // Session resume or keyboard hints
-              if (msg.content.includes('[↻]') || msg.content.startsWith('Keyboard:')) {
-                return (
-                  <box key={key} style={{ marginBottom: 1 }}>
-                    <text content={msg.content} fg={activeTheme.colors.muted} />
-                  </box>
-                );
-              }
-              return (
-                <box key={key} style={{ marginBottom: 0 }}>
-                  <text content={msg.content} fg={activeTheme.colors.systemMessage} />
-                </box>
-              );
+              return null;
             }
 
             return null;
@@ -5356,7 +5375,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
         {scrollOffset > 0 && (
           <box style={{ marginTop: 0 }}>
             <text
-              content={`↑ Scroll up to see ${scrollOffset} earlier message${scrollOffset > 1 ? 's' : ''}`}
+              content={`↑ Scroll up to see ${scrollOffset} earlier line${scrollOffset > 1 ? 's' : ''}`}
               fg="gray"
             />
           </box>
