@@ -5413,10 +5413,10 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                     <box
                       border={true}
                       borderStyle="single"
-                      borderColor={activeTheme.colors.thinkingChip}
+                      borderColor="gray"
                       style={{ paddingLeft: 1, paddingRight: 1, marginTop: 0, maxHeight: 8, maxWidth: 60 }}
                     >
-                      <text content={session.content.slice(-500)} fg={activeTheme.colors.muted} />
+                      <text content={session.content.slice(-500)} fg="gray" />
                     </box>
                   )}
                 </box>
@@ -5476,7 +5476,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                         <box key={`tool-detail-${idx}`} style={{ flexDirection: 'column' }}>
                           <text
                             content={`${idx + 1}. ${msg.toolInput ? JSON.stringify(msg.toolInput).slice(0, 50) : 'No input'}${msg.toolInput && JSON.stringify(msg.toolInput).length > 50 ? '...' : ''}`}
-                            fg="white"
+                            fg="gray"
                           />
                           {msg.toolResult && (
                             <text
@@ -5587,10 +5587,10 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                   <box
                     border={true}
                     borderStyle="single"
-                    borderColor={activeTheme.colors.thinkingChip}
+                    borderColor="gray"
                     style={{ paddingLeft: 1, paddingRight: 1, marginTop: 0, maxHeight: 8, maxWidth: 60 }}
                   >
-                    <text content={session.content.slice(-500)} fg={activeTheme.colors.muted} />
+                    <text content={session.content.slice(-500)} fg="gray" />
                   </box>
                 )}
               </box>
@@ -5646,14 +5646,14 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                   <box
                     border={true}
                     borderStyle="single"
-                    borderColor={activeTheme.colors.muted}
+                    borderColor="gray"
                     style={{ paddingLeft: 1, paddingRight: 1, marginTop: 0, maxHeight: 10 }}
                   >
                     {toolMessages.slice(-5).map((msg, idx) => (
                       <box key={`box-tool-detail-${idx}`} style={{ flexDirection: 'column' }}>
                         <text
                           content={`${idx + 1}. ${msg.toolInput ? JSON.stringify(msg.toolInput).slice(0, 50) : 'No input'}${msg.toolInput && JSON.stringify(msg.toolInput).length > 50 ? '...' : ''}`}
-                          fg="white"
+                          fg="gray"
                         />
                         {msg.toolResult && (
                           <text
