@@ -4458,10 +4458,10 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
       // Scroll up (wheel up): button codes 64, 68
       if (seq.includes('<64;') || seq.includes('<68;')) {
         updateState((prev) => {
-          const maxOffset = Math.max(0, prev.messages.length - 5);
+          // No strict max offset for lines, let it grow
           return {
             ...prev,
-            messageScrollOffset: Math.min(maxOffset, prev.messageScrollOffset + 3)
+            messageScrollOffset: prev.messageScrollOffset + 3
           };
         });
         return;
