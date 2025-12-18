@@ -65,10 +65,8 @@ export function calculateMessageHeight(
   terminalColumns: number,
   isCollapsed: boolean = false
 ): number {
-  let height = 0
-
-  // Header line (You: / Claude: / Tool:)
-  height += 1
+  // Base height: Top Border (1) + Bottom Border (1) + Margin Bottom (1) = 3
+  let height = 3
 
   // Content lines (with wrapping consideration)
   if (message.content) {
@@ -87,9 +85,6 @@ export function calculateMessageHeight(
       height += inputJson.split('\n').length + 1 // +1 for label
     }
   }
-
-  // Spacer between messages
-  height += 1
 
   return height
 }

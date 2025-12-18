@@ -5296,7 +5296,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                     border={true}
                     borderStyle="rounded"
                     borderColor={activeTheme.colors.userMessage}
-                    style={{ paddingLeft: 1, paddingRight: 1, paddingTop: 0, paddingBottom: 0 }}
+                    style={{ paddingLeft: 1, paddingRight: 1, paddingTop: 0, paddingBottom: 0, minHeight: 3 }}
                     bg="blackBright"
                   >
                     {renderMarkdown(contentToRender)}
@@ -5317,7 +5317,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                     border={true}
                     borderStyle="rounded"
                     borderColor={activeTheme.colors.border}
-                    style={{ paddingLeft: 1, paddingRight: 1, paddingTop: 0, paddingBottom: 0, flexGrow: 1 }}
+                    style={{ paddingLeft: 1, paddingRight: 1, paddingTop: 0, paddingBottom: 0, flexGrow: 1, minHeight: 3 }}
                     bg="blackBright"
                     label={showHeader && modelDisplay ? ` ${modelDisplay} ` : undefined}
                     labelPosition="left"
