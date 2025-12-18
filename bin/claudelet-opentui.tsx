@@ -4461,7 +4461,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
           // No strict max offset for lines, let it grow
           return {
             ...prev,
-            messageScrollOffset: prev.messageScrollOffset + 3
+            messageScrollOffset: prev.messageScrollOffset + 5
           };
         });
         return;
@@ -4470,7 +4470,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
       if (seq.includes('<65;') || seq.includes('<69;')) {
         updateState((prev) => ({
           ...prev,
-          messageScrollOffset: Math.max(0, prev.messageScrollOffset - 3)
+          messageScrollOffset: Math.max(0, prev.messageScrollOffset - 5)
         }));
         return;
       }
@@ -5211,15 +5211,6 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
           paddingRight: 1,
           paddingTop: 1,
           overflow: 'hidden'
-        }}
-        onMouseScroll={(event) => {
-          // Scroll messages with mouse wheel (LINES not messages)
-          // Wheel Up (deltaY < 0) -> scroll back (increase offset)
-          // Wheel Down (deltaY > 0) -> scroll forward (decrease offset)
-          const delta = event.deltaY < 0 ? 3 : -3; 
-          updateState((prev) => ({
-            messageScrollOffset: Math.max(0, prev.messageScrollOffset + delta)
-          }));
         }}
       >
         {visibleMessages
@@ -6861,7 +6852,7 @@ async function main(): Promise<void> {
     exitOnCtrlC: false, // We handle Ctrl+C manually
     useMouse: true, // Enable mouse tracking so scroll wheel doesn't trigger arrow keys
     useKittyKeyboard: null, // Disabled - was causing issues
-    useAlternateScreen: false, // Prevents alternate screen buffer for less disruption
+    useAlternateScreen: true, // Enabled for correct scroll wheel capture
     useThread: false, // Disable native threading - might cause event loop blocking
     targetFps: 24, // Reduced from 30 to minimize screen redraws
     debounceDelay: 100 // Increased from 50 to batch more updates together
