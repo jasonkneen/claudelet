@@ -49,58 +49,8 @@ export interface HybridSearchResult {
   source: 'semantic' | 'grep';
 }
 
-/**
- * Multi-session instance manager for AiToolsService
- * Tracks instances per project path to enable concurrent shell sessions
- */
-class AiToolsInstanceManager {
-  private static instances = new Map<string, AiToolsService>();
-
-  /**
-   * Get or create an instance for a specific project path
-   */
-  static getInstance(projectPath: string): AiToolsService {
-    const normalizedPath = path.resolve(projectPath);
-
-    if (!this.instances.has(normalizedPath)) {
-      console.error(`[AiTools] Creating new instance for: ${normalizedPath}`);
-      this.instances.set(normalizedPath, new AiToolsService(normalizedPath));
-    }
-
-    return this.instances.get(normalizedPath)!;
-  }
-
-  /**
-   * Dispose and remove an instance for a project
-   */
-  static async disposeInstance(projectPath: string): Promise<void> {
-    const normalizedPath = path.resolve(projectPath);
-    const instance = this.instances.get(normalizedPath);
-
-    if (instance) {
-      console.error(`[AiTools] Disposing instance for: ${normalizedPath}`);
-      await instance.dispose();
-      this.instances.delete(normalizedPath);
-    }
-  }
-
-  /**
-   * Get all active instances (for debugging)
-   */
-  static getActiveInstances(): string[] {
-    return Array.from(this.instances.keys());
-  }
-
-  /**
-   * Dispose all instances (for cleanup on app exit)
-   */
-  static async disposeAll(): Promise<void> {
-    console.error(`[AiTools] Disposing all ${this.instances.size} instances...`);
-    const disposePromises = Array.from(this.instances.values()).map(instance => instance.dispose());
-    await Promise.all(disposePromises);
-    this.instances.clear();
-  }
-}
+// NOTE: AiToolsService is intentionally NOT a singleton.
+// Create one instance per UI process and dispose it on shutdown.
 
 export class AiToolsService extends EventEmitter {
   public fastApply: FastApply;
@@ -119,6 +69,10 @@ export class AiToolsService extends EventEmitter {
   private cacheBase: string;
   private currentPatchModel: PatchModel = 'Q4_K_M';
   private disposed: boolean = false;
+  private processHandlersRegistered = false;
+  private onBeforeExit?: () => void;
+  private onSigInt?: () => void;
+  private onSigTerm?: () => void;
 
   constructor(projectPath: string) {
     super();
@@ -247,39 +201,30 @@ export class AiToolsService extends EventEmitter {
   private watcherStatus: 'off' | 'starting' | 'ready' | 'watching' | 'error' = 'off';
 
   /**
-   * Get or create an instance for a specific project path.
-   * Multiple shells with the same project get the same instance.
-   * Different projects get isolated instances.
-   *
-   * @param projectPath - Absolute path to the project directory
-   * @returns AiToolsService instance for the project
-   *
-   * @example
-   * // Shell 1: /project-a
-   * const tools1 = AiToolsService.getInstance('/project-a');
-   *
-   * // Shell 2: /project-b
-   * const tools2 = AiToolsService.getInstance('/project-b');
-   *
-   * // tools1 and tools2 are completely isolated
+   * Factory for creating a new AiToolsService instance.
+   * Registers process shutdown handlers for clean disposal.
    */
-  public static getInstance(projectPath: string): AiToolsService {
-    return AiToolsInstanceManager.getInstance(projectPath);
+  public static create(projectPath: string): AiToolsService {
+    const instance = new AiToolsService(path.resolve(projectPath));
+    instance.registerProcessHandlers();
+    return instance;
   }
 
-  /**
-   * Dispose an instance for a specific project
-   * @param projectPath - Absolute path to the project directory
-   */
-  public static async disposeInstance(projectPath: string): Promise<void> {
-    return AiToolsInstanceManager.disposeInstance(projectPath);
-  }
+  private registerProcessHandlers(): void {
+    if (this.processHandlersRegistered) return;
+    this.processHandlersRegistered = true;
 
-  /**
-   * Dispose all instances (for app cleanup)
-   */
-  public static async disposeAll(): Promise<void> {
-    return AiToolsInstanceManager.disposeAll();
+    const safeDispose = () => {
+      void this.dispose();
+    };
+
+    this.onBeforeExit = safeDispose;
+    this.onSigInt = safeDispose;
+    this.onSigTerm = safeDispose;
+
+    process.once('beforeExit', this.onBeforeExit);
+    process.once('SIGINT', this.onSigInt);
+    process.once('SIGTERM', this.onSigTerm);
   }
 
   /**
@@ -454,6 +399,17 @@ export class AiToolsService extends EventEmitter {
     this.disposed = true;
 
     try {
+      // Remove process handlers (registered via create())
+      if (this.processHandlersRegistered) {
+        if (this.onBeforeExit) process.off('beforeExit', this.onBeforeExit);
+        if (this.onSigInt) process.off('SIGINT', this.onSigInt);
+        if (this.onSigTerm) process.off('SIGTERM', this.onSigTerm);
+        this.processHandlersRegistered = false;
+        this.onBeforeExit = undefined;
+        this.onSigInt = undefined;
+        this.onSigTerm = undefined;
+      }
+
       // Stop file watcher worker thread
       this.stopWatcher();
 
@@ -512,8 +468,10 @@ export class AiToolsService extends EventEmitter {
     // Re-attach listeners
     this.attachFastApplyListeners();
 
-    // Pre-load to trigger download if needed
-    await this.fastApply.load();
+    // Kick off a best-effort preload to trigger download if needed.
+    // Do not await here: model availability depends on local downloads and should not
+    // block UI startup or unit tests.
+    void this.fastApply.load().catch(() => {});
   }
 
   /**

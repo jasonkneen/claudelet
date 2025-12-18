@@ -116,7 +116,7 @@ describe('LSPClient Shutdown', () => {
     mockProcess.exitCode = 0
 
     // Should complete immediately without hanging
-    await expect(client.shutdown()).resolves.not.toThrow()
+    await expect(client.shutdown()).resolves.toBeUndefined()
   })
 
   it('should handle shutdown request failure gracefully', async () => {
@@ -126,6 +126,6 @@ describe('LSPClient Shutdown', () => {
     })
 
     // Should still complete shutdown
-    await expect(client.shutdown()).resolves.not.toThrow()
+    await expect(client.shutdown()).resolves.toBeUndefined()
   })
 })

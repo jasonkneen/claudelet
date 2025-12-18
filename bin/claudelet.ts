@@ -104,11 +104,11 @@ async function handleOAuthFlow(
 
     console.log('Please visit this URL to authorize:\n');
     console.log(`  ${authUrl}\n`);
-    console.log('After authorizing, you will see an authorization code.');
-    console.log('Copy and paste the authorization code here.\n');
+    console.log('After authorizing, you will be redirected to a callback URL.');
+    console.log('Copy/paste the full callback URL here (or just `code`, or `code#state`).\n');
 
     // Get authorization code from user
-    const code = await rl.question('Paste the authorization code: ');
+    const code = await rl.question('Paste the callback URL (or code): ');
     const trimmedCode = code.trim();
 
     if (!trimmedCode) {

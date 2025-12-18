@@ -19,6 +19,7 @@ type SensitivePattern = string | RegExp
 const SENSITIVE_PATTERNS: SensitivePattern[] = [
   'ANTHROPIC_API_KEY',
   'CLAUDELET_AUTH_TOKEN',
+  /SENSITIVE/i,
   /API_KEY/i,
   /SECRET/i,
   /TOKEN/i,
@@ -123,7 +124,13 @@ export function sanitizeText(text: string): string {
     // API key pattern (sk-... or similar)
     .replace(/\bsk-[a-zA-Z0-9_-]+/gi, '[REDACTED]')
     // Bearer tokens
-    .replace(/Bearer\s+[a-zA-Z0-9_-]+/gi, 'Bearer [REDACTED]')
+    .replace(/Bearer\s+[a-zA-Z0-9._-]+/gi, 'Bearer [REDACTED]')
+    // JSON token fields
+    .replace(/"(access_token|refresh_token|id_token|token)"\s*:\s*"[^"]*"/gi, '"$1":"[REDACTED]"')
+    // Plaintext token-ish fields (token: abc, token=abc)
+    .replace(/\b(access_token|refresh_token|id_token|token)\b\s*[:=]\s*([^\s,]+)/gi, '$1: [REDACTED]')
+    // oauth-token-ish phrases
+    .replace(/\boauth[-_ ]?token\b\s*[:=]?\s*([^\s,]+)/gi, 'oauth-token [REDACTED]')
     // Generic key=value patterns with sensitive keys
     .replace(/(ANTHROPIC_API_KEY|AUTH_TOKEN|API_KEY|SECRET|PASSWORD|PRIVATE_KEY)\s*=\s*[^\s,]+/gi, '$1=[REDACTED]')
 }

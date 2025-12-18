@@ -52,7 +52,7 @@ A powerful, feature-rich terminal interface for Claude that combines beautiful U
 
 ### From Source
 ```bash
-cd packages/claudelet
+cd /path/to/claudelet
 bun install
 bun run dev
 ```
@@ -75,6 +75,11 @@ bun run build
    - Anthropic OAuth (Account or Max subscription)
    - OpenRouter API key
    - Direct API key
+
+   **OAuth paste tip:** when prompted, you can paste any of these:
+   - Full callback URL: `https://console.anthropic.com/oauth/code/callback?code=...&state=...`
+   - Code only: `afzcmRBFJHwy...`
+   - Code + state: `afzcmRBFJHwy...#2da95480...`
 
 3. **Start chatting**
    ```
@@ -220,6 +225,8 @@ OPENROUTER_API_KEY=sk-or-...
 DEBUG=1 bun run dev
 ```
 
+See `docs/guides/AUTHENTICATION.md` for full OAuth/API key details.
+
 ### Custom Workspace
 ```bash
 cd /my/project
@@ -294,15 +301,16 @@ Display Updates (real-time)
 ## Project Structure
 
 ```
-packages/claudelet/
+claudelet/
 ├── bin/
 │   ├── claudelet-opentui.tsx    # OpenTUI interface (default)
 │   ├── claudelet-tui.tsx        # Ink-based TUI
 │   ├── claudelet-ai-tools.ts    # AI tools service
 │   └── claudelet.ts             # Classic CLI
 ├── src/
-│   ├── index.ts                # Library exports
-│   └── auth-storage.ts         # Auth management
+│   ├── index.ts                 # Library exports
+│   └── auth-storage.ts          # Auth file storage (~/.claude-agent-auth.json)
+├── packages/                    # Workspace packages (agent loop, oauth, lsp, search, fast-apply)
 ├── package.json
 └── README.md
 ```
@@ -342,8 +350,11 @@ packages/claudelet/
 
 **OAuth failing:**
 - Run `/logout` to clear tokens
-- Delete `~/.config/claudelet/` (Linux) or `~/Library/Application Support/claudelet/` (macOS)
+- Delete `~/.claude-agent-auth.json` (auth cache) and try again
+- When prompted, paste the full callback URL (or `code` / `code#state`)
 - Use direct API key instead
+
+More details: `docs/guides/AUTHENTICATION.md`.
 
 ## Development
 

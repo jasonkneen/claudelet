@@ -12,16 +12,6 @@ import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 export type ModelPreference = 'fast' | 'smart-sonnet' | 'smart-opus' | 'auto';
 
 /**
- * Item in the message queue waiting to be processed
- */
-export interface MessageQueueItem {
-  /** The user message content to send to the SDK */
-  message: SDKUserMessage['message'];
-  /** Callback to resolve when the message has been yielded to the generator */
-  resolve: () => void;
-}
-
-/**
  * Configuration options for starting an agent session
  */
 export interface AgentSessionOptions {

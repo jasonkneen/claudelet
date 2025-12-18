@@ -167,7 +167,7 @@ export class InferenceEngine extends EventEmitter {
           temperature: TEMPERATURE,
         })
 
-        const output = await this.runWithTimeout(responsePromise)
+        const output = await this.runWithTimeout<string>(responsePromise)
         const durationMs = Date.now() - startTime
         console.log(`[FastApply] Inference completed in ${durationMs}ms`)
 
@@ -182,7 +182,7 @@ export class InferenceEngine extends EventEmitter {
             durationMs,
           }
         } else {
-          console.log('[FastApply] Raw output:', output?.substring(0, 200))
+          console.log('[FastApply] Raw output:', typeof output === 'string' ? output.substring(0, 200) : String(output))
           return {
             success: false,
             error: 'Failed to parse model output',

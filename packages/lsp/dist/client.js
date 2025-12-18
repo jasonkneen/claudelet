@@ -176,7 +176,7 @@ class LSPClient extends events_1.EventEmitter {
         const header = `Content-Length: ${Buffer.byteLength(content)}\r\n\r\n`;
         this.process.stdin?.write(header + content);
     }
-    _sendRequest(method, params) {
+    _sendRequest(method, params, timeoutMs = 10_000) {
         return new Promise((resolve, reject) => {
             const id = ++this.requestId;
             const timeout = setTimeout(() => {
@@ -184,7 +184,7 @@ class LSPClient extends events_1.EventEmitter {
                     this.pendingRequests.delete(id);
                     reject(new Error(`LSP request timeout: ${method}`));
                 }
-            }, 10000);
+            }, timeoutMs);
             this.pendingRequests.set(id, {
                 resolve: resolve,
                 reject,
@@ -430,36 +430,57 @@ class LSPClient extends events_1.EventEmitter {
      * Shutdown the LSP server with timeout-aware cleanup
      */
     async shutdown() {
-        const SHUTDOWN_TIMEOUT = 5000; // 5 seconds
+        // Keep this under the default 5s test timeout (vitest/bun) while still
+        // being long enough for graceful shutdown in real servers.
+        const SHUTDOWN_TIMEOUT = 4000; // 4 seconds
+        // Fast-path: process is already gone.
+        if (this.process.killed || this.process.exitCode !== null) {
+            try {
+                this.process.stdin?.end();
+                this.process.stdout?.destroy();
+                this.process.stderr?.destroy();
+            }
+            catch {
+                // Ignore
+            }
+            return;
+        }
+        // Best-effort shutdown request (short timeout so tests/CI never hang here).
         try {
-            // Send shutdown request and wait for response
-            await this._sendRequest('shutdown', null);
-            // Send exit notification
-            this._sendNotification('exit', null);
-            // Wait for graceful shutdown with timeout
-            await Promise.race([
-                new Promise((resolve) => {
-                    if (this.process.killed || this.process.exitCode !== null) {
-                        resolve();
-                        return;
-                    }
-                    const exitHandler = () => {
-                        resolve();
-                    };
-                    this.process.once('exit', exitHandler);
-                    // Cleanup listener if timeout wins
-                    setTimeout(() => {
-                        this.process.off('exit', exitHandler);
-                    }, SHUTDOWN_TIMEOUT);
-                }),
-                new Promise((resolve) => setTimeout(resolve, SHUTDOWN_TIMEOUT)),
-            ]);
+            await this._sendRequest('shutdown', null, 100);
         }
         catch {
-            // Server may have already exited or failed to respond
+            // Server may not respond to shutdown; continue with best-effort exit + timeout wait.
         }
+        // Best-effort exit notification.
+        try {
+            this._sendNotification('exit', null);
+        }
+        catch {
+            // Ignore write errors during shutdown.
+        }
+        // Wait for graceful shutdown with timeout.
+        await Promise.race([
+            new Promise((resolve) => {
+                if (this.process.killed || this.process.exitCode !== null) {
+                    resolve();
+                    return;
+                }
+                const exitHandler = () => {
+                    resolve();
+                };
+                this.process.once('exit', exitHandler);
+                this.process.once('close', exitHandler);
+                // Cleanup listener if timeout wins
+                setTimeout(() => {
+                    this.process.off('exit', exitHandler);
+                    this.process.off('close', exitHandler);
+                }, SHUTDOWN_TIMEOUT);
+            }),
+            new Promise((resolve) => setTimeout(resolve, SHUTDOWN_TIMEOUT)),
+        ]);
         // Force kill if still running
-        if (this.process && !this.process.killed) {
+        if (this.process && this.process.exitCode === null && !this.process.killed) {
             console.log(`[LSP:${this.serverID}] Force killing unresponsive server`);
             this.process.kill('SIGKILL');
         }

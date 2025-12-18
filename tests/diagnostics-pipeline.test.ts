@@ -13,7 +13,7 @@ describe('Diagnostics Pipeline', () => {
 
   beforeEach(() => {
     // Get instance for testing
-    aiTools = AiToolsService.getInstance(testProjectPath)
+    aiTools = AiToolsService.create(testProjectPath)
   })
 
   afterEach(async () => {

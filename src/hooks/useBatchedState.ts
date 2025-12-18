@@ -1,5 +1,14 @@
 import { useCallback, useState } from 'react'
 
+export type BatchedStateUpdate<T extends object> = Partial<T> | ((prev: T) => Partial<T>)
+
+export function applyBatchedStateUpdate<T extends object>(prev: T, updates: BatchedStateUpdate<T>): T {
+  return {
+    ...prev,
+    ...(typeof updates === 'function' ? updates(prev) : updates)
+  }
+}
+
 /**
  * Custom hook for managing state with batched partial updates.
  *
@@ -22,11 +31,8 @@ export function useBatchedState<T extends object>(initialState: T) {
   const [state, setState] = useState<T>(initialState)
 
   const updateState = useCallback(
-    (updates: Partial<T> | ((prev: T) => Partial<T>)) => {
-      setState((prev) => ({
-        ...prev,
-        ...(typeof updates === 'function' ? updates(prev) : updates)
-      }))
+    (updates: BatchedStateUpdate<T>) => {
+      setState((prev) => applyBatchedStateUpdate(prev, updates))
     },
     []
   )

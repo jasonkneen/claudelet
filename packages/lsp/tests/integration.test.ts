@@ -28,7 +28,7 @@ describe('LSP Integration Tests', () => {
     expect(Array.isArray(status)).toBe(true)
 
     // Shutdown should complete without errors
-    await expect(manager.shutdown()).resolves.not.toThrow()
+    await expect(manager.shutdown()).resolves.toBeUndefined()
   })
 
   it('should handle multiple shutdown calls gracefully', async () => {
@@ -38,7 +38,7 @@ describe('LSP Integration Tests', () => {
     await manager.shutdown()
 
     // Second shutdown should not throw
-    await expect(manager.shutdown()).resolves.not.toThrow()
+    await expect(manager.shutdown()).resolves.toBeUndefined()
   })
 
   it('should support server enable/disable', async () => {

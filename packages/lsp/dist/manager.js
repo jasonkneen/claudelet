@@ -515,7 +515,7 @@ class LSPManager extends events_1.EventEmitter {
             status.push({
                 id,
                 name: server.name,
-                extensions: server.extensions,
+                extensions: Array.isArray(server.extensions) ? [...server.extensions] : [],
                 enabled: this.isServerEnabled(id),
                 installed,
                 installable: server.installable,

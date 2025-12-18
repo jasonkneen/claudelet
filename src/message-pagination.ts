@@ -189,16 +189,13 @@ export function calculateVisibleMessages(
       visibleStart = visibleEnd - spaceRemaining
     }
 
-    // Add to result (prepend because we're iterating backwards)
-    // Actually we'll reverse the result at the end
-    const renderable: RenderableMessage = { ...msg }
-    
-    // Only set visibleLines if partial
-    if (visibleStart > 0 || visibleEnd < msgHeight) {
-      renderable.visibleLines = { start: visibleStart, end: visibleEnd }
+    // Preserve object identity when fully visible (important for tests/UI diffing).
+    if (visibleStart === 0 && visibleEnd === msgHeight) {
+      result.push(msg as RenderableMessage)
+    } else {
+      const renderable: RenderableMessage = { ...msg, visibleLines: { start: visibleStart, end: visibleEnd } }
+      result.push(renderable)
     }
-
-    result.push(renderable)
     currentVisibleRows += (visibleEnd - visibleStart)
   }
 
@@ -217,20 +214,12 @@ export function applyScroll(
   amount: number,
   totalMessages: number // Ignored now, unbounded line scroll? Or we need max lines?
 ): number {
-  // Ideally we clamp to max lines, but calculating total lines is expensive.
-  // For now, allow unbounded scroll up, but clamp at 0 for bottom.
-  // The UI can limit it if empty.
-  return Math.max(0, currentOffset - amount) // Invert logic: Scroll UP increases offset (lines from bottom)
-  // Wait, existing logic:
-  // "Positive amount: scroll down (decrease offset)"
-  // So currentOffset is "lines from bottom".
-  // if amount is +1 (scroll down), offset should decrease.
-  // if amount is -1 (scroll up), offset should increase.
-  
-  // Actually, let's keep it simple:
-  // Offset = distance from bottom.
-  // Scroll Down = view moves down = offset decreases.
-  // Scroll Up = view moves up = offset increases.
+  // Offset is measured in lines from the bottom (0 = at bottom/newest).
+  // Convention used by the UI/tests:
+  // - Negative amount: scroll DOWN (toward newest) => decrease offset
+  // - Positive amount: scroll UP (toward oldest)   => increase offset
+  const maxOffset = Math.max(0, totalMessages - 1)
+  return Math.min(maxOffset, Math.max(0, currentOffset + amount))
 }
 
 /**
@@ -244,9 +233,8 @@ export function isAtBottom(scrollOffset: number): boolean {
  * Check if user is at the top of the message list
  */
 export function isAtTop(scrollOffset: number, totalMessages: number): boolean {
-  // Hard to tell without total lines. Approximate with message count?
-  // Let's just say "no" for now or use a large number check.
-  return false 
+  if (totalMessages <= 0) return true
+  return scrollOffset >= totalMessages - 1
 }
 
 /**

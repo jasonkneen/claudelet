@@ -52,7 +52,7 @@ describe('AiToolsService', () => {
   describe('Lifecycle Management', () => {
     it('should initialize without errors', async () => {
       instance = AiToolsService.create(testProjectPath)
-      await expect(instance.initialize()).resolves.not.toThrow()
+      await expect(instance.initialize()).resolves.toBeUndefined()
     })
 
     it('should dispose all resources properly', async () => {
@@ -60,7 +60,7 @@ describe('AiToolsService', () => {
       await instance.initialize()
 
       // Should dispose without errors
-      await expect(instance.dispose()).resolves.not.toThrow()
+      await expect(instance.dispose()).resolves.toBeUndefined()
     })
 
     it('should prevent double disposal', async () => {
@@ -71,7 +71,7 @@ describe('AiToolsService', () => {
       await instance.dispose()
 
       // Second dispose should be idempotent
-      await expect(instance.dispose()).resolves.not.toThrow()
+      await expect(instance.dispose()).resolves.toBeUndefined()
     })
 
     it('should emit status:change event on initialization', async () => {
@@ -110,6 +110,9 @@ describe('AiToolsService', () => {
     it('should close file watcher on dispose', async () => {
       instance = AiToolsService.create(testProjectPath)
       await instance.initialize()
+
+      // Start watcher explicitly (it's lazy by design)
+      instance.ensureWatcher()
 
       // The watcher should be active
       expect(instance['watcher']).not.toBeNull()

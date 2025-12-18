@@ -59,6 +59,7 @@ export class EventCoordinator extends EventEmitter {
   private subscriptions: Map<string, AgentSubscription> = new Map();
   private eventBuffer: SubAgentEvent[] = [];
   private maxBufferSize = 1000;
+  private toolNameByUseId: Map<string, string> = new Map();
 
   constructor() {
     super();
@@ -84,6 +85,13 @@ export class EventCoordinator extends EventEmitter {
     agent.events.on('text', onText);
     handlers.push({ event: 'text', handler: onText });
 
+    // Started (task assigned)
+    const onStarted = (data: { agentId: string; taskId: string; model: ModelPreference }) => {
+      this.emitEvent({ type: 'started', ...data });
+    };
+    agent.events.on('started', onStarted);
+    handlers.push({ event: 'started', handler: onStarted });
+
     // Thinking
     const onThinking = (data: { agentId: string; delta: string }) => {
       this.emitEvent({ type: 'thinking', ...data });
@@ -92,11 +100,16 @@ export class EventCoordinator extends EventEmitter {
     handlers.push({ event: 'thinkingChunk', handler: onThinking });
 
     // Tool start
-    const onToolStart = (data: { agentId: string; toolName: string; input?: unknown }) => {
+    const onToolStart = (data: { agentId: string; toolName: string; id?: string; name?: string; input?: unknown }) => {
+      const toolUseId = typeof data.id === 'string' ? data.id : undefined;
+      const name = typeof data.name === 'string' && data.name.length > 0 ? data.name : data.toolName;
+      if (toolUseId) {
+        this.toolNameByUseId.set(toolUseId, name);
+      }
       this.emitEvent({
         type: 'toolStart',
         agentId: data.agentId,
-        toolName: data.toolName,
+        toolName: name,
         toolInput: data.input
       });
     };
@@ -105,10 +118,11 @@ export class EventCoordinator extends EventEmitter {
 
     // Tool complete
     const onToolComplete = (data: { agentId: string; toolUseId: string; content: string; isError?: boolean }) => {
+      const toolName = this.toolNameByUseId.get(data.toolUseId) ?? data.toolUseId;
       this.emitEvent({
         type: 'toolComplete',
         agentId: data.agentId,
-        toolName: data.toolUseId, // Use toolUseId as name for now
+        toolName,
         result: data.content,
         isError: data.isError
       });
@@ -161,13 +175,6 @@ export class EventCoordinator extends EventEmitter {
 
     this.subscriptions.set(agentId, { agentId, agent, unsubscribe });
 
-    // Emit started event
-    this.emitEvent({
-      type: 'started',
-      agentId,
-      taskId: agent.currentTaskId || '',
-      model: agent.model
-    });
   }
 
   /**
@@ -278,6 +285,7 @@ export class EventCoordinator extends EventEmitter {
     }
     this.subscriptions.clear();
     this.eventBuffer = [];
+    this.toolNameByUseId.clear();
     this.removeAllListeners();
   }
 }

@@ -592,7 +592,7 @@ export class LSPManager extends EventEmitter implements LSPManagerEventEmitter {
       status.push({
         id,
         name: server.name,
-        extensions: server.extensions,
+        extensions: Array.isArray(server.extensions) ? [...server.extensions] : [],
         enabled: this.isServerEnabled(id),
         installed,
         installable: server.installable,

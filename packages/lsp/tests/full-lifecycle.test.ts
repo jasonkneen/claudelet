@@ -164,7 +164,10 @@ describe('Full Lifecycle Tests', () => {
       })
 
       // Verify extensions are strings
-      for (const ext of server.extensions) {
+      const extensions = Array.isArray(server.extensions)
+        ? server.extensions
+        : Array.from(server.extensions as any)
+      for (const ext of extensions) {
         expect(typeof ext).toBe('string')
         expect(ext).toMatch(/^\.\w+$/) // Should be like .ts, .py, etc
       }

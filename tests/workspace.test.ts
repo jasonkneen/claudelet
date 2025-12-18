@@ -82,6 +82,5 @@ describe('Monorepo Workspace Configuration', () => {
     )
     const depsString = JSON.stringify(rootPackageJson.dependencies || {})
     expect(depsString).not.toMatch(/file:\.\.\//)
-    expect(depsString).not.toMatch(/^/)
   })
 })

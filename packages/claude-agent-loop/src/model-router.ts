@@ -82,6 +82,7 @@ export function modelChoiceFromPreference(preference: string): ModelChoice {
  * Get display name from ModelPreference type used in agent-session.
  */
 export function getModelDisplayFromPreference(preference: string): string {
+  if (preference === 'auto') return 'Auto'
   const choice = modelChoiceFromPreference(preference)
   return MODEL_DISPLAY[choice]
 }

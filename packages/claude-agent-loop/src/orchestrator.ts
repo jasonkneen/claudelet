@@ -33,13 +33,23 @@ export interface UserTask {
 export interface OrchestrationContext {
   id: string;
   initialTask: UserTask;
-  status: 'idle' | 'triaging' | 'planning' | 'delegating' | 'running' | 'complete' | 'failed';
+  status: 'idle' | 'triaging' | 'planning' | 'delegating' | 'running' | 'complete' | 'failed' | 'canceled';
   analysis?: TaskAnalysis;
   plan?: OrchestrationPlan;
+  taskIds: string[];
   subAgentIds: string[];
-  results: Map<string, unknown>;
+  results: Map<string, OrchestrationResult>;
   createdAt: Date;
   completedAt?: Date;
+}
+
+export interface OrchestrationResult {
+  taskId: string;
+  agentId: string;
+  model: ModelPreference;
+  status: 'completed' | 'failed';
+  output?: string;
+  error?: string;
 }
 
 /**
@@ -128,6 +138,7 @@ export class FastModeCoordinator extends EventEmitter {
       id: this.generateContextId(),
       initialTask: task,
       status: 'idle',
+      taskIds: [],
       subAgentIds: [],
       results: new Map(),
       createdAt: new Date()
@@ -156,22 +167,41 @@ export class FastModeCoordinator extends EventEmitter {
     for (const [contextId, context] of Array.from(this.activeContexts.entries())) {
       if (context.subAgentIds.includes(event.agentId)) {
         if (event.type === 'completed') {
-          context.results.set(event.agentId, event.result);
+          const taskId = event.taskId || event.agentId;
+          context.results.set(taskId, {
+            taskId,
+            agentId: event.agentId,
+            model: this.subAgentPool.getAgent(event.agentId)?.model ?? 'fast',
+            status: 'completed',
+            output: typeof event.result === 'string' ? event.result : JSON.stringify(event.result)
+          });
 
           // Check if all sub-agents completed
-          const allComplete = context.subAgentIds.every(
-            id => context.results.has(id) || this.subAgentPool.getAgent(id)?.status === 'error'
-          );
+          const allComplete =
+            context.taskIds.length > 0
+              ? context.taskIds.every((id) => context.results.has(id))
+              : context.subAgentIds.every((id) => {
+                  const agent = this.subAgentPool.getAgent(id);
+                  return agent?.status === 'done' || agent?.status === 'error';
+                });
 
           if (allComplete) {
             this.updateContext(contextId, {
-              status: 'complete',
+              status: Array.from(context.results.values()).some((r) => r.status === 'failed')
+                ? 'failed'
+                : 'complete',
               completedAt: new Date()
             });
           }
         } else if (event.type === 'failed') {
-          // Mark the result as error
-          context.results.set(event.agentId, { error: event.error });
+          const taskId = event.taskId || event.agentId;
+          context.results.set(taskId, {
+            taskId,
+            agentId: event.agentId,
+            model: this.subAgentPool.getAgent(event.agentId)?.model ?? 'fast',
+            status: 'failed',
+            error: event.error
+          });
         }
         break;
       }
@@ -265,16 +295,41 @@ Format your response as JSON:
    * Parse Opus response into an orchestration plan
    */
   private parsePlanFromResult(result: unknown): OrchestrationPlan {
-    // Try to extract JSON from result
-    if (typeof result === 'string') {
-      const jsonMatch = result.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
+    const tryParse = (text: string): OrchestrationPlan | null => {
+      const trimmed = text.trim();
+      if (trimmed.startsWith('{')) {
         try {
-          return JSON.parse(jsonMatch[0]) as OrchestrationPlan;
+          return JSON.parse(trimmed) as OrchestrationPlan;
         } catch {
-          // Fall through to default
+          // continue
         }
       }
+
+      // Prefer fenced JSON blocks
+      const fenced = trimmed.match(/```json\s*([\s\S]*?)\s*```/i);
+      if (fenced?.[1]) {
+        try {
+          return JSON.parse(fenced[1]) as OrchestrationPlan;
+        } catch {
+          // continue
+        }
+      }
+
+      // Extract first JSON object using brace matching (string-aware)
+      const first = extractFirstJsonObject(trimmed);
+      if (first) {
+        try {
+          return JSON.parse(first) as OrchestrationPlan;
+        } catch {
+          // continue
+        }
+      }
+      return null;
+    };
+
+    if (typeof result === 'string') {
+      const parsed = tryParse(result);
+      if (parsed) return parsed;
     }
 
     // Default minimal plan
@@ -288,6 +343,33 @@ Format your response as JSON:
       }],
       summary: 'Single-task execution'
     };
+  }
+
+  /**
+   * Run an entire orchestration end-to-end and return a final response.
+   */
+  async run(task: Omit<UserTask, 'id'>, opts?: { timeoutMs?: number }): Promise<{ contextId: string; response: string }> {
+    const { contextId, done } = await this.start(task, opts);
+    return { contextId, response: await done };
+  }
+
+  /**
+   * Start orchestration and return contextId immediately plus a completion promise.
+   */
+  async start(
+    task: Omit<UserTask, 'id'>,
+    opts?: { timeoutMs?: number }
+  ): Promise<{ contextId: string; done: Promise<string> }> {
+    const { contextId } = await this.triage(task);
+    await this.delegate(contextId);
+
+    const done = (async () => {
+      const context = await this.waitForContext(contextId, opts?.timeoutMs ?? 10 * 60_000);
+      if (context.status === 'canceled') return 'Canceled.';
+      return await this.summarizeContext(contextId, context).catch(() => this.fallbackAggregate(context));
+    })();
+
+    return { contextId, done };
   }
 
   /**
@@ -339,44 +421,124 @@ Format your response as JSON:
     const plan = context.plan || context.analysis.plan;
 
     if (plan && plan.decomposition.length > 0) {
-      // Execute plan decomposition
-      for (const task of plan.decomposition) {
-        // Wait for dependencies
-        if (task.dependsOn.length > 0) {
-          await Promise.all(
-            task.dependsOn.map((depId: string) => this.waitForTask(contextId, depId))
-          );
-        }
+      context.taskIds = plan.decomposition.map((t) => t.taskId);
+      this.updateContext(contextId, { taskIds: context.taskIds });
 
-        // Spawn appropriate agent
-        const model = task.suggestedModel === 'fast' ? 'fast' :
-                      task.suggestedModel === 'smart-opus' ? 'smart-opus' : 'smart-sonnet';
-        const agent = await this.subAgentPool.spawn(model);
-        context.subAgentIds.push(agent.id);
-        agentIds.push(agent.id);
-        this.eventCoordinator.subscribe(agent.id, agent);
+      const taskPromises = new Map<string, Promise<OrchestrationResult>>();
+      const taskDeferred = new Map<
+        string,
+        { promise: Promise<OrchestrationResult>; resolve: (r: OrchestrationResult) => void }
+      >();
 
-        // Execute task (fire and forget - events will track progress)
-        this.subAgentPool.execute(agent.id, {
-          id: task.taskId,
-          content: task.description,
-          priority: context.initialTask.priority
-        }).catch((err: Error) => {
-          this.emit('error', { agentId: agent.id, error: err });
+      for (const planned of plan.decomposition) {
+        let resolve!: (r: OrchestrationResult) => void;
+        const promise = new Promise<OrchestrationResult>((r) => {
+          resolve = r;
         });
+        taskDeferred.set(planned.taskId, { promise, resolve });
       }
+
+      for (const planned of plan.decomposition) {
+        const taskPromise = (async (): Promise<OrchestrationResult> => {
+          const deps = planned.dependsOn
+            .map((depId) => taskDeferred.get(depId)?.promise)
+            .filter(Boolean) as Array<Promise<OrchestrationResult>>;
+          await Promise.all(deps);
+
+          const model: ModelPreference =
+            planned.suggestedModel === 'fast'
+              ? 'fast'
+              : planned.suggestedModel === 'smart-opus'
+                ? 'smart-opus'
+                : 'smart-sonnet';
+
+          const agent = await this.subAgentPool.spawn(model);
+          context.subAgentIds.push(agent.id);
+          agentIds.push(agent.id);
+          this.eventCoordinator.subscribe(agent.id, agent);
+
+          try {
+            const output = await this.subAgentPool.execute(agent.id, {
+              id: planned.taskId,
+              content: planned.description,
+              priority: context.initialTask.priority
+            });
+            const result: OrchestrationResult = {
+              taskId: planned.taskId,
+              agentId: agent.id,
+              model,
+              status: 'completed',
+              output: typeof output === 'string' ? output : JSON.stringify(output)
+            };
+            context.results.set(planned.taskId, result);
+            this.updateContext(contextId, { results: context.results });
+            taskDeferred.get(planned.taskId)?.resolve(result);
+            return result;
+          } catch (err) {
+            const result: OrchestrationResult = {
+              taskId: planned.taskId,
+              agentId: agent.id,
+              model,
+              status: 'failed',
+              error: err instanceof Error ? err.message : String(err)
+            };
+            context.results.set(planned.taskId, result);
+            this.updateContext(contextId, { results: context.results });
+            taskDeferred.get(planned.taskId)?.resolve(result);
+            return result;
+          }
+        })();
+
+        taskPromises.set(planned.taskId, taskPromise);
+      }
+
+      void Promise.allSettled(taskPromises.values()).then((settled) => {
+        const anyFailed = settled.some((r) => r.status === 'fulfilled' && r.value.status === 'failed');
+        this.updateContext(contextId, {
+          status: anyFailed ? 'failed' : 'complete',
+          completedAt: new Date()
+        });
+      });
     } else {
-      // Simple delegation based on analysis
+      context.taskIds = [context.initialTask.id];
+      this.updateContext(contextId, { taskIds: context.taskIds });
+
       const model = context.analysis.suggestedModel;
       const agent = await this.subAgentPool.spawn(model);
       context.subAgentIds.push(agent.id);
       agentIds.push(agent.id);
       this.eventCoordinator.subscribe(agent.id, agent);
 
-      // Execute the main task
-      this.subAgentPool.execute(agent.id, context.initialTask).catch((err: Error) => {
-        this.emit('error', { agentId: agent.id, error: err });
-      });
+      void this.subAgentPool.execute(agent.id, context.initialTask)
+        .then((output) => {
+          context.results.set(context.initialTask.id, {
+            taskId: context.initialTask.id,
+            agentId: agent.id,
+            model,
+            status: 'completed',
+            output: typeof output === 'string' ? output : JSON.stringify(output)
+          });
+          this.updateContext(contextId, {
+            status: 'complete',
+            completedAt: new Date(),
+            results: context.results
+          });
+        })
+        .catch((err: Error) => {
+          context.results.set(context.initialTask.id, {
+            taskId: context.initialTask.id,
+            agentId: agent.id,
+            model,
+            status: 'failed',
+            error: err.message
+          });
+          this.updateContext(contextId, {
+            status: 'failed',
+            completedAt: new Date(),
+            results: context.results
+          });
+          this.emit('error', { agentId: agent.id, error: err });
+        });
     }
 
     this.updateContext(contextId, { status: 'running' });
@@ -384,31 +546,121 @@ Format your response as JSON:
   }
 
   /**
-   * Wait for a specific task to complete
+   * Wait for a context to reach a terminal state.
    */
-  private waitForTask(contextId: string, taskId: string): Promise<void> {
-    return new Promise((resolve) => {
-      const checkComplete = () => {
-        const context = this.activeContexts.get(contextId);
-        if (!context) {
-          resolve();
-          return;
-        }
+  async waitForContext(contextId: string, timeoutMs: number): Promise<OrchestrationContext> {
+    const existing = this.activeContexts.get(contextId);
+    if (!existing) throw new Error(`Context ${contextId} not found`);
 
-        // Find agent handling this task
-        for (const agentId of context.subAgentIds) {
-          const agent = this.subAgentPool.getAgent(agentId);
-          if (agent?.currentTaskId === taskId && agent.status === 'done') {
-            resolve();
-            return;
-          }
-        }
+    const isTerminal = (status: OrchestrationContext['status']) =>
+      status === 'complete' || status === 'failed' || status === 'canceled';
 
-        // Check again in 100ms
-        setTimeout(checkComplete, 100);
+    if (isTerminal(existing.status)) return existing;
+
+    return await new Promise<OrchestrationContext>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        cleanup();
+        reject(new Error(`Orchestration timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+
+      const handler = (updated: OrchestrationContext) => {
+        if (updated.id !== contextId) return;
+        if (isTerminal(updated.status)) {
+          cleanup();
+          resolve(updated);
+        }
       };
-      checkComplete();
+
+      const cleanup = () => {
+        clearTimeout(timeout);
+        this.off('contextUpdate', handler);
+      };
+
+      this.on('contextUpdate', handler);
     });
+  }
+
+  /**
+   * Interrupt all running agents in a context and mark as canceled.
+   */
+  async interruptContext(contextId: string, reason?: string): Promise<void> {
+    const context = this.activeContexts.get(contextId);
+    if (!context) return;
+
+    await Promise.all(
+      context.subAgentIds.map((id) => this.subAgentPool.interrupt(id))
+    );
+
+    this.updateContext(contextId, {
+      status: 'canceled',
+      completedAt: new Date()
+    });
+
+    if (reason) {
+      this.emit('warning', { contextId, reason });
+    }
+  }
+
+  private fallbackAggregate(context: OrchestrationContext): string {
+    const lines: string[] = [];
+    lines.push(context.plan?.summary ? `Summary: ${context.plan.summary}` : 'Summary: Completed');
+    for (const taskId of context.taskIds) {
+      const r = context.results.get(taskId);
+      if (!r) continue;
+      lines.push('');
+      lines.push(`=== ${taskId} (${r.model}, ${r.status}) ===`);
+      if (r.status === 'failed') {
+        lines.push(`Error: ${r.error ?? 'unknown error'}`);
+      } else if (r.output) {
+        lines.push(r.output);
+      }
+    }
+    return lines.join('\n');
+  }
+
+  private async summarizeContext(contextId: string, context: OrchestrationContext): Promise<string> {
+    const summarizer = await this.subAgentPool.spawn('smart-sonnet');
+    context.subAgentIds.push(summarizer.id);
+    this.eventCoordinator.subscribe(summarizer.id, summarizer);
+
+    const results = context.taskIds
+      .map((taskId) => context.results.get(taskId))
+      .filter(Boolean) as OrchestrationResult[];
+
+    const payload = results
+      .map((r) => ({
+        taskId: r.taskId,
+        model: r.model,
+        status: r.status,
+        output: r.output,
+        error: r.error
+      }));
+
+    const prompt = [
+      'You are the synthesizer for an orchestrated team of sub-agents.',
+      'Produce ONE final response to the user.',
+      '',
+      `USER TASK: ${context.initialTask.content}`,
+      '',
+      context.plan?.summary ? `PLAN SUMMARY: ${context.plan.summary}` : '',
+      '',
+      'SUB-AGENT RESULTS (JSON):',
+      JSON.stringify(payload, null, 2),
+      '',
+      'Requirements:',
+      '- Be concise but complete.',
+      '- If any sub-task failed, call it out and propose a workaround or next step.',
+      '- Prefer actionable steps, commands, and file paths when relevant.',
+      '- Do not mention internal orchestration mechanics.'
+    ].filter(Boolean).join('\n');
+
+    const output = await this.subAgentPool.execute(summarizer.id, {
+      id: `${contextId}-synth`,
+      content: prompt,
+      priority: context.initialTask.priority
+    });
+
+    return typeof output === 'string' ? output : JSON.stringify(output);
   }
 
   /**
@@ -440,4 +692,46 @@ Format your response as JSON:
     this.eventCoordinator.removeAllListeners();
     this.activeContexts.clear();
   }
+}
+
+function extractFirstJsonObject(text: string): string | null {
+  const start = text.indexOf('{');
+  if (start === -1) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+
+    if (inString) {
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (ch === '\\\\') {
+        escape = true;
+        continue;
+      }
+      if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (ch === '{') depth++;
+    if (ch === '}') depth--;
+
+    if (depth === 0) {
+      return text.slice(start, i + 1);
+    }
+  }
+
+  return null;
 }

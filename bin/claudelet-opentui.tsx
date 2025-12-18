@@ -51,6 +51,7 @@ import {
   type StoredMessage
 } from '../src/session-storage.js';
 import { sanitizeText } from '../src/env-sanitizer.js';
+import { SecurityValidator } from '../src/security-validator.js';
 import { AiToolsService } from './claudelet-ai-tools.js';
 import { useBatchedState } from '../src/hooks/useBatchedState.js';
 import {
@@ -164,11 +165,11 @@ async function handleOAuthFlow(
 
     console.log('Please visit this URL to authorize:\n');
     console.log(`  ${authUrl}\n`);
-    console.log('After authorizing, you will see an authorization code.');
-    console.log('Copy and paste the authorization code here.\n');
+    console.log('After authorizing, you will be redirected to a callback URL.');
+    console.log('Copy/paste the full callback URL here (or just `code`, or `code#state`).\n');
 
     // Get authorization code from user
-    const code = await rl.question('Paste the authorization code: ');
+    const code = await rl.question('Paste the callback URL (or code): ');
     const trimmedCode = code.trim();
 
     if (!trimmedCode) {
@@ -366,6 +367,7 @@ interface Theme {
     inputBorder: string;
     statusBar: string;
     highlight: string;
+    background: string;
     // Chips/badges
     toolChip: string;
     toolChipActive: string;
@@ -434,6 +436,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#4C566A',
       statusBar: '#88C0D0',
       highlight: '#8FBCBB',
+      background: '#000000',
       toolChip: '#434C5E',
       toolChipActive: '#88C0D0',
       thinkingChip: '#81A1C1',
@@ -466,6 +469,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#f9cb8f',
       statusBar: '#ffb86c',
       highlight: '#f9cb8f',
+      background: '#000000',
       toolChip: '#2f2a24',
       toolChipActive: '#ffb86c',
       thinkingChip: '#ffe066',
@@ -498,6 +502,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#88d4e8',
       statusBar: '#5eb3d6',
       highlight: '#4ecdc4',
+      background: '#000000',
       toolChip: '#152838',
       toolChipActive: '#5eb3d6',
       thinkingChip: '#e8c488',
@@ -530,6 +535,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#b8b8c2',
       statusBar: '#b8b8c2',
       highlight: '#eaeaed',
+      background: '#000000',
       toolChip: '#27272f',
       toolChipActive: '#b8b8c2',
       thinkingChip: '#b8b8c2',
@@ -562,6 +568,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#6d6d6d',
       statusBar: '#a277ff',
       highlight: '#a277ff',
+      background: '#000000',
       toolChip: '#15141b',
       toolChipActive: '#a277ff',
       thinkingChip: '#ffca85',
@@ -594,6 +601,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#6C7380',
       statusBar: '#59C2FF',
       highlight: '#E6B450',
+      background: '#000000',
       toolChip: '#0D1017',
       toolChipActive: '#59C2FF',
       thinkingChip: '#E6B673',
@@ -626,6 +634,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#5fd7ff',
       statusBar: '#5fb4e4',
       highlight: '#5fd7ff',
+      background: '#000000',
       toolChip: '#1d252e',
       toolChipActive: '#5fb4e4',
       thinkingChip: '#ff9e64',
@@ -658,6 +667,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#45475a',
       statusBar: '#89b4fa',
       highlight: '#f5c2e7',
+      background: '#000000',
       toolChip: '#11111b',
       toolChipActive: '#89b4fa',
       thinkingChip: '#f9e2af',
@@ -690,6 +700,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#494d64',
       statusBar: '#8aadf4',
       highlight: '#f5bde6',
+      background: '#000000',
       toolChip: '#181926',
       toolChipActive: '#8aadf4',
       thinkingChip: '#eed49f',
@@ -722,6 +733,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#b3b3bd',
       statusBar: '#b3b3bd',
       highlight: '#ededf0',
+      background: '#000000',
       toolChip: '#23232b',
       toolChipActive: '#b3b3bd',
       thinkingChip: '#b3b3bd',
@@ -754,6 +766,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#0088ff',
       statusBar: '#0088ff',
       highlight: '#2affdf',
+      background: '#000000',
       toolChip: '#1f4662',
       toolChipActive: '#0088ff',
       thinkingChip: '#ffc600',
@@ -786,6 +799,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#454d58',
       statusBar: '#caced1',
       highlight: '#caced1',
+      background: '#000000',
       toolChip: '#262a30',
       toolChipActive: '#caced1',
       thinkingChip: '#9a9a9a',
@@ -818,6 +832,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#454d58',
       statusBar: '#a8c0ff',
       highlight: '#a8c0ff',
+      background: '#000000',
       toolChip: '#262a30',
       toolChipActive: '#a8c0ff',
       thinkingChip: '#d7c6a0',
@@ -850,6 +865,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#454d58',
       statusBar: '#b6d1b7',
       highlight: '#b6d1b7',
+      background: '#000000',
       toolChip: '#262a30',
       toolChipActive: '#b6d1b7',
       thinkingChip: '#d6c7a1',
@@ -882,6 +898,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#454d58',
       statusBar: '#f0b5c0',
       highlight: '#f0b5c0',
+      background: '#000000',
       toolChip: '#262a30',
       toolChipActive: '#f0b5c0',
       thinkingChip: '#d9b8a1',
@@ -914,6 +931,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#454d58',
       statusBar: '#caced1',
       highlight: '#caced1',
+      background: '#000000',
       toolChip: '#262a30',
       toolChipActive: '#caced1',
       thinkingChip: '#9a9a9a',
@@ -946,6 +964,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#454d58',
       statusBar: '#a8c0ff',
       highlight: '#a8c0ff',
+      background: '#000000',
       toolChip: '#262a30',
       toolChipActive: '#a8c0ff',
       thinkingChip: '#d7c6a0',
@@ -978,6 +997,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#454d58',
       statusBar: '#b6d1b7',
       highlight: '#b6d1b7',
+      background: '#000000',
       toolChip: '#262a30',
       toolChipActive: '#b6d1b7',
       thinkingChip: '#d6c7a1',
@@ -1010,6 +1030,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#454d58',
       statusBar: '#f0b5c0',
       highlight: '#f0b5c0',
+      background: '#000000',
       toolChip: '#262a30',
       toolChipActive: '#f0b5c0',
       thinkingChip: '#d9b8a1',
@@ -1042,6 +1063,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#ff5f87',
       statusBar: '#ff4057',
       highlight: '#ff5f87',
+      background: '#000000',
       toolChip: '#2f1a27',
       toolChipActive: '#ff4057',
       thinkingChip: '#ff7f3f',
@@ -1074,6 +1096,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#0dffea',
       statusBar: '#0dffea',
       highlight: '#00d9ff',
+      background: '#000000',
       toolChip: '#141b2b',
       toolChipActive: '#0dffea',
       thinkingChip: '#ff6b1a',
@@ -1106,6 +1129,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#3bc9db',
       statusBar: '#4dabf7',
       highlight: '#3bc9db',
+      background: '#000000',
       toolChip: '#112938',
       toolChipActive: '#4dabf7',
       thinkingChip: '#ffd43b',
@@ -1138,6 +1162,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#bd93f9',
       statusBar: '#bd93f9',
       highlight: '#8be9fd',
+      background: '#000000',
       toolChip: '#44475a',
       toolChipActive: '#bd93f9',
       thinkingChip: '#f1fa8c',
@@ -1170,6 +1195,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#5af0c8',
       statusBar: '#5af0c8',
       highlight: '#7ee8c8',
+      background: '#000000',
       toolChip: '#172c34',
       toolChipActive: '#5af0c8',
       thinkingChip: '#cfdf8f',
@@ -1202,6 +1228,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#9da9a0',
       statusBar: '#a7c080',
       highlight: '#d699b6',
+      background: '#000000',
       toolChip: '#343f44',
       toolChipActive: '#a7c080',
       thinkingChip: '#e69875',
@@ -1234,6 +1261,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#6F6E69',
       statusBar: '#DA702C',
       highlight: '#8B7EC8',
+      background: '#000000',
       toolChip: '#282726',
       toolChipActive: '#DA702C',
       thinkingChip: '#DA702C',
@@ -1266,6 +1294,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#e879f9',
       statusBar: '#b794f6',
       highlight: '#e879f9',
+      background: '#000000',
       toolChip: '#291a3f',
       toolChipActive: '#b794f6',
       thinkingChip: '#ffb86c',
@@ -1298,6 +1327,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#58a6ff',
       statusBar: '#58a6ff',
       highlight: '#39c5cf',
+      background: '#000000',
       toolChip: '#161b22',
       toolChipActive: '#58a6ff',
       thinkingChip: '#e3b341',
@@ -1330,6 +1360,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#adadb8',
       statusBar: '#adadb8',
       highlight: '#f0f0f4',
+      background: '#000000',
       toolChip: '#1f1f23',
       toolChipActive: '#adadb8',
       thinkingChip: '#adadb8',
@@ -1362,6 +1393,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#ebdbb2',
       statusBar: '#83a598',
       highlight: '#8ec07c',
+      background: '#000000',
       toolChip: '#504945',
       toolChipActive: '#83a598',
       thinkingChip: '#fe8019',
@@ -1394,6 +1426,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#C38D9D',
       statusBar: '#7E9CD8',
       highlight: '#D27E99',
+      background: '#000000',
       toolChip: '#363646',
       toolChipActive: '#7E9CD8',
       thinkingChip: '#D7A657',
@@ -1426,6 +1459,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#ff0000',
       statusBar: '#ff0000',
       highlight: '#ff0000',
+      background: '#000000',
       toolChip: '#330000',
       toolChipActive: '#ffff00',
       thinkingChip: '#ffff00',
@@ -1458,6 +1492,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#82aaff',
       statusBar: '#82aaff',
       highlight: '#89ddff',
+      background: '#000000',
       toolChip: '#37474f',
       toolChipActive: '#82aaff',
       thinkingChip: '#ffcb6b',
@@ -1490,6 +1525,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#2eff6a',
       statusBar: '#2eff6a',
       highlight: '#c770ff',
+      background: '#000000',
       toolChip: '#141c12',
       toolChipActive: '#2eff6a',
       thinkingChip: '#e6ff57',
@@ -1522,6 +1558,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#8da4f5',
       statusBar: '#8da4f5',
       highlight: '#8da4f5',
+      background: '#000000',
       toolChip: '#272735',
       toolChipActive: '#8da4f5',
       thinkingChip: '#fc9b6f',
@@ -1554,6 +1591,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#4fc3f7',
       statusBar: '#4fc3f7',
       highlight: '#26c6da',
+      background: '#000000',
       toolChip: '#1d1d34',
       toolChipActive: '#4fc3f7',
       thinkingChip: '#ffb74d',
@@ -1586,6 +1624,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#66d9ef',
       statusBar: '#66d9ef',
       highlight: '#a6e22e',
+      background: '#000000',
       toolChip: '#3e3d32',
       toolChipActive: '#66d9ef',
       thinkingChip: '#e6db74',
@@ -1618,6 +1657,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#aaaaaa',
       statusBar: '#aaaaaa',
       highlight: '#ffffff',
+      background: '#000000',
       toolChip: '#151515',
       toolChipActive: '#aaaaaa',
       thinkingChip: '#aaaaaa',
@@ -1650,6 +1690,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#06ffa5',
       statusBar: '#3a86ff',
       highlight: '#06ffa5',
+      background: '#000000',
       toolChip: '#2d1654',
       toolChipActive: '#3a86ff',
       thinkingChip: '#fb5607',
@@ -1682,6 +1723,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#82AAFF',
       statusBar: '#82AAFF',
       highlight: '#c792ea',
+      background: '#000000',
       toolChip: '#0b253a',
       toolChipActive: '#82AAFF',
       thinkingChip: '#ecc48d',
@@ -1714,6 +1756,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#4C566A',
       statusBar: '#88C0D0',
       highlight: '#8FBCBB',
+      background: '#000000',
       toolChip: '#434C5E',
       toolChipActive: '#88C0D0',
       thinkingChip: '#D08770',
@@ -1746,6 +1789,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#58a6ff',
       statusBar: '#58a6ff',
       highlight: '#56d4dd',
+      background: '#000000',
       toolChip: '#1c2128',
       toolChipActive: '#58a6ff',
       thinkingChip: '#ffa657',
@@ -1778,6 +1822,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#61afef',
       statusBar: '#61afef',
       highlight: '#56b6c2',
+      background: '#000000',
       toolChip: '#353b45',
       toolChipActive: '#61afef',
       thinkingChip: '#e5c07b',
@@ -1810,6 +1855,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#606060',
       statusBar: '#fab283',
       highlight: '#f5a742',
+      background: '#000000',
       toolChip: '#1e1e1e',
       toolChipActive: '#fab283',
       thinkingChip: '#f5a742',
@@ -1842,6 +1888,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#EE7948',
       statusBar: '#EC5B2B',
       highlight: '#FFF7F1',
+      background: '#000000',
       toolChip: '#1e1e1e',
       toolChipActive: '#EC5B2B',
       thinkingChip: '#EC5B2B',
@@ -1874,6 +1921,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#82aaff',
       statusBar: '#82aaff',
       highlight: '#89ddff',
+      background: '#000000',
       toolChip: '#32364a',
       toolChipActive: '#82aaff',
       thinkingChip: '#ffcb6b',
@@ -1906,6 +1954,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#c084fc',
       statusBar: '#818cf8',
       highlight: '#c084fc',
+      background: '#000000',
       toolChip: '#23242f',
       toolChipActive: '#818cf8',
       thinkingChip: '#fbbf24',
@@ -1938,6 +1987,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#7dcfff',
       statusBar: '#61afef',
       highlight: '#7dcfff',
+      background: '#000000',
       toolChip: '#1e202f',
       toolChipActive: '#61afef',
       thinkingChip: '#e0af68',
@@ -1970,6 +2020,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#9ccfd8',
       statusBar: '#9ccfd8',
       highlight: '#ebbcba',
+      background: '#000000',
       toolChip: '#26233a',
       toolChipActive: '#9ccfd8',
       thinkingChip: '#f6c177',
@@ -2002,6 +2053,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#a1a1b3',
       statusBar: '#a1a1b3',
       highlight: '#f4f4f7',
+      background: '#000000',
       toolChip: '#1a1a1e',
       toolChipActive: '#a1a1b3',
       thinkingChip: '#a1a1b3',
@@ -2034,6 +2086,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#586e75',
       statusBar: '#268bd2',
       highlight: '#2aa198',
+      background: '#000000',
       toolChip: '#073642',
       toolChipActive: '#268bd2',
       thinkingChip: '#b58900',
@@ -2066,6 +2119,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#ff6e9c',
       statusBar: '#ff9e64',
       highlight: '#ff6e9c',
+      background: '#000000',
       toolChip: '#322837',
       toolChipActive: '#ff9e64',
       thinkingChip: '#ffc777',
@@ -2098,6 +2152,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#36f9f6',
       statusBar: '#36f9f6',
       highlight: '#b084eb',
+      background: '#000000',
       toolChip: '#2a2139',
       toolChipActive: '#36f9f6',
       thinkingChip: '#fede5d',
@@ -2130,6 +2185,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#9099b2',
       statusBar: '#82aaff',
       highlight: '#ff966c',
+      background: '#000000',
       toolChip: '#222436',
       toolChipActive: '#82aaff',
       thinkingChip: '#ff966c',
@@ -2162,6 +2218,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#454545',
       statusBar: '#0070F3',
       highlight: '#8E4EC6',
+      background: '#000000',
       toolChip: '#292929',
       toolChipActive: '#0070F3',
       thinkingChip: '#FFB224',
@@ -2194,6 +2251,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#FFC799',
       statusBar: '#FFC799',
       highlight: '#FFC799',
+      background: '#000000',
       toolChip: '#101010',
       toolChipActive: '#FFC799',
       thinkingChip: '#FFC799',
@@ -2226,6 +2284,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#89ddff',
       statusBar: '#82aaff',
       highlight: '#89ddff',
+      background: '#000000',
       toolChip: '#101020',
       toolChipActive: '#82aaff',
       thinkingChip: '#ffcb6b',
@@ -2258,6 +2317,7 @@ const DEFAULT_THEMES: Theme[] = [
       inputBorder: '#8cd0d3',
       statusBar: '#8cd0d3',
       highlight: '#93e0e3',
+      background: '#000000',
       toolChip: '#5f5f5f',
       toolChipActive: '#8cd0d3',
       thinkingChip: '#f0dfaf',
@@ -2298,7 +2358,6 @@ interface AppState {
   showTaskList: boolean;
   expandedToolIds: Set<string>;
   currentToolId?: string; // Track the currently active tool for capturing output
-  messageScrollOffset: number; // For scrolling through messages
   inputTokens: number;
   outputTokens: number;
   aiTools?: AiToolsService;
@@ -2319,6 +2378,12 @@ interface AppState {
   // Status bar popup state (mutually exclusive)
   activeStatusPopup: 'model' | 'mode' | 'context' | 'lsp' | 'idx' | 'patchModel' | null;
   selectedPopupIndex: number; // For keyboard navigation in popups
+  // Agent message pagination state
+  agentMessagesVisible: Map<string, number>; // agentId -> number of messages to display (starts at 20)
+  expandedAgentMessageIds: Set<string>; // Which agents show their message blocks
+  activeAgentTabId: string | null; // Which agent tab is active in the tabbed view
+  // Session switching state
+  pendingSessionSwitch?: { availableSessions: SessionSummary[]; prompted: boolean };
 }
 
 /**
@@ -2456,12 +2521,61 @@ function segmentsToDisplayString(segments: InputSegment[]): string {
       if (seg.type === 'text') {
         return seg.text;
       } else if (seg.type === 'chip') {
-        return `[${seg.chip.label}]`;
+        return seg.chip.label;
       } else {
-        return `[${seg.context.isInclude ? '+' : '-'}${seg.context.label}]`;
+        return seg.context.label;
       }
     })
     .join('');
+}
+
+/**
+ * Render text with multi-line support by splitting on newlines
+ * Returns React elements for proper line-by-line display
+ */
+function renderMultilineText(
+  text: string,
+  fgColor: string,
+  cursorPosOverall: number,
+  cursorVisible: boolean,
+  beforeText: string = '',
+  afterText: string = ''
+): React.ReactNode[] {
+  const lines = text.split('\n');
+  const elements: React.ReactNode[] = [];
+  let charCount = beforeText.length;
+
+  lines.forEach((line, lineIdx) => {
+    const lineStart = charCount;
+    const lineEnd = charCount + line.length;
+
+    // Check if cursor is on this line
+    const cursorOnLine = cursorPosOverall >= lineStart && cursorPosOverall <= lineEnd;
+    const cursorOffsetInLine = cursorOnLine ? cursorPosOverall - lineStart : -1;
+
+    if (cursorOnLine) {
+      // Render cursor on this line
+      const beforeCursor = line.slice(0, cursorOffsetInLine);
+      const afterCursor = line.slice(cursorOffsetInLine);
+      elements.push(
+        <React.Fragment key={`line-${lineIdx}`}>
+          <text content={beforeCursor} fg={fgColor} />
+          <text content={cursorVisible ? '█' : ' '} fg="gray" />
+          <text content={afterCursor} fg={fgColor} />
+          {lineIdx < lines.length - 1 && <text content="" />}
+        </React.Fragment>
+      );
+    } else {
+      // Regular line
+      elements.push(
+        <text key={`line-${lineIdx}`} content={line} fg={fgColor} />
+      );
+    }
+
+    charCount += line.length + 1; // +1 for newline
+  });
+
+  return elements;
 }
 
 /**
@@ -2615,12 +2729,12 @@ async function getCompletions(segments: InputSegment[]): Promise<string[]> {
  * Helper to switch model and update state/session
  */
 async function switchModel(
-  model: 'fast' | 'smart-sonnet' | 'smart-opus',
+  model: 'auto' | 'fast' | 'smart-sonnet' | 'smart-opus',
   session: AgentSessionHandle | null,
   updateState: (updates: Partial<AppState> | ((prev: AppState) => Partial<AppState>)) => void
 ): Promise<void> {
   try {
-    if (session) {
+    if (session && model !== 'auto') {
       await session.setModel(model);
     }
     updateState((prev: AppState) => ({
@@ -2666,24 +2780,14 @@ const ToolActivityBoxes: React.FC<{
         const label = activity.name.toLowerCase();
 
         return (
-          <box
+          <text
             key={`tool-box-${activity.name}`}
-            border={true}
-            borderStyle="rounded"
-            borderColor={activity.isActive ? 'cyan' : 'gray'}
-            style={{
-              paddingLeft: 1,
-              paddingRight: 1,
-              marginRight: 1
-            }}
-          >
-            <text
-              content={`${label}${countSuffix}`}
-              fg={fgColor}
-              bg={bgColor}
-              bold={activity.isActive}
-            />
-          </box>
+            content={` ${label}${countSuffix} `}
+            fg={fgColor}
+            bg={bgColor}
+            bold={activity.isActive}
+            style={{ marginRight: 1 }}
+          />
         );
       })}
     </box>
@@ -2750,6 +2854,205 @@ const SubAgentTaskBox: React.FC<{
 );
 
 /**
+ * TabbedAgentMessageBlock - Full-width block showing all agents as tabs
+ * Only one agent's content is visible at a time, click tabs to switch
+ */
+const TabbedAgentMessageBlock: React.FC<{
+  agents: SubAgent[];
+  activeAgentId: string | null;
+  visibleLineCount: number;
+  onSelectTab: (agentId: string) => void;
+  onShowMore: () => void;
+}> = ({ agents, activeAgentId, visibleLineCount, onSelectTab, onShowMore }) => {
+  // Set first agent as default if none selected
+  const effectiveActiveId = activeAgentId || agents[0]?.id || null;
+  const activeAgent = agents.find((a) => a.id === effectiveActiveId);
+
+  if (!activeAgent) {
+    return null;
+  }
+
+  const outputLines = activeAgent.liveOutput?.split('\n') || [];
+  const totalLines = outputLines.length;
+  const displayLines = outputLines.slice(0, visibleLineCount);
+  const hasMore = visibleLineCount < totalLines;
+
+  const statusColor =
+    activeAgent.status === 'running' ? 'cyan' :
+    activeAgent.status === 'done' ? 'green' :
+    activeAgent.status === 'error' ? 'red' :
+    activeAgent.status === 'waiting' ? 'yellow' : 'gray';
+
+  return (
+    <box style={{ marginBottom: 1, flexShrink: 0 }}>
+      {/* Top border line - full width */}
+      <text content={'─'.repeat(120)} fg="gray" />
+
+      {/* Tab bar - all agents as clickable tabs */}
+      <box style={{ flexDirection: 'row', paddingLeft: 1, paddingRight: 1, paddingBottom: 0, backgroundColor: '#1a1a1a' }}>
+        {agents.map((agent, idx) => {
+          const isActive = agent.id === effectiveActiveId;
+          return (
+            <React.Fragment key={`tab-${agent.id}`}>
+              <text
+                content={` ${agent.id} `}
+                fg={isActive ? 'black' : 'gray'}
+                bg={isActive ? 'gray' : undefined}
+                bold={isActive}
+                style={{ cursor: 'pointer' }}
+                onMouseUp={() => onSelectTab(agent.id)}
+              />
+              {idx < agents.length - 1 && <text content=" " fg="gray" />}
+            </React.Fragment>
+          );
+        })}
+      </box>
+
+      {/* Separator line */}
+      <text content={'─'.repeat(120)} fg="gray" />
+
+      {/* Content area for active agent - fixed height with scrolling */}
+      <scrollbox
+        scrollX={false}
+        style={{
+          maxHeight: 30,
+          flexShrink: 0
+        }}
+        options={{
+          style: {
+            scrollbar: {
+              bg: 'gray'
+            }
+          }
+        }}
+      >
+        <box style={{ paddingLeft: 1, paddingRight: 1, paddingTop: 1, paddingBottom: 1 }}>
+          {/* Header with status and model */}
+          <box style={{ flexDirection: 'row' }}>
+            <text content={`${activeAgent.model}`} fg="gray" />
+            <text content=" | " fg="gray" />
+            <text content={activeAgent.status} fg={statusColor} bold />
+            {activeAgent.progress && (
+              <text content={` ${activeAgent.progress.percent}%`} fg="yellow" />
+            )}
+          </box>
+
+          {/* Task description */}
+          {activeAgent.currentTask && (
+            <box style={{ marginTop: 1 }}>
+              <text content="Task: " fg="gray" bold />
+              <text content={activeAgent.currentTask} fg="gray" />
+            </box>
+          )}
+
+          {/* Progress message */}
+          {activeAgent.progress && (
+            <text content={activeAgent.progress.message} fg="gray" style={{ marginTop: 1 }} />
+          )}
+
+          {/* Live output with pagination */}
+          {displayLines.length > 0 && (
+            <box style={{ marginTop: 1 }}>
+              {displayLines.map((line, idx) => (
+                <text key={`output-${idx}`} content={line} fg="gray" />
+              ))}
+              {/* Show more button */}
+              {hasMore && (
+                <box
+                  style={{ marginTop: 1, flexDirection: 'row' }}
+                  onMouseUp={onShowMore}
+                >
+                  <text content="[Show more " fg="blue" />
+                  <text content={`(${totalLines - visibleLineCount} more lines)`} fg="cyan" />
+                  <text content="]" fg="blue" />
+                </box>
+              )}
+            </box>
+          )}
+        </box>
+      </scrollbox>
+    </box>
+  );
+};
+
+/**
+ * AgentMessageBlock - Displays agent as a collapsible message-like block within message flow
+ * Shows agent status, current task, and paginated live output
+ */
+const AgentMessageBlock: React.FC<{
+  agent: SubAgent;
+  isExpanded: boolean;
+  visibleLineCount: number;
+  onToggle: () => void;
+  onShowMore: () => void;
+}> = ({ agent, isExpanded, visibleLineCount, onToggle, onShowMore }) => {
+  // Split liveOutput into lines for pagination
+  const outputLines = agent.liveOutput?.split('\n') || [];
+  const totalLines = outputLines.length;
+  const displayLines = outputLines.slice(0, visibleLineCount);
+  const hasMore = visibleLineCount < totalLines;
+
+  const statusColor =
+    agent.status === 'running' ? 'cyan' :
+    agent.status === 'done' ? 'green' :
+    agent.status === 'error' ? 'red' :
+    agent.status === 'waiting' ? 'yellow' : 'gray';
+
+  return (
+    <box style={{ marginBottom: 1, border: 'single', borderColor: 'blue' }}>
+      {/* Header - always visible */}
+      <box
+        style={{ flexDirection: 'row', paddingLeft: 1, paddingRight: 1 }}
+        onMouseUp={onToggle}
+      >
+        <text content={isExpanded ? '[-]' : '[+]'} fg="blue" bold />
+        <text content={` Agent: ${agent.id} `} fg="blue" bold />
+        <text content={`(${agent.model})`} fg="gray" />
+        <text content=" | " fg="gray" />
+        <text content={agent.status} fg={statusColor} bold />
+        {agent.progress && (
+          <text content={` ${agent.progress.percent}%`} fg="yellow" />
+        )}
+      </box>
+
+      {/* Expanded content - task and output */}
+      {isExpanded && (
+        <box style={{ paddingLeft: 2, paddingRight: 1, paddingTop: 1, paddingBottom: 1 }}>
+          {agent.currentTask && (
+            <>
+              <text content="Task: " fg="gray" bold />
+              <text content={agent.currentTask} fg="gray" />
+            </>
+          )}
+          {agent.progress && (
+            <text content={agent.progress.message} fg="gray" />
+          )}
+          {/* Live output with pagination */}
+          {displayLines.length > 0 && (
+            <box style={{ marginTop: 1 }}>
+              {displayLines.map((line, idx) => (
+                <text key={`output-${idx}`} content={line} fg="gray" />
+              ))}
+              {/* Show more button */}
+              {hasMore && (
+                <box
+                  style={{ marginTop: 1, flexDirection: 'row' }}
+                  onMouseUp={onShowMore}
+                >
+                  <text content="[Show more " fg="blue" />
+                  <text content={`(${totalLines - visibleLineCount} more lines)`} fg="cyan" />
+                  <text content="]" fg="blue" />
+                </box>
+              )}
+            </box>
+          )}
+        </box>
+      )}
+    </box>
+  );
+};
+
+/**
  * CollapsibleSubAgentsSection - Shows all sub-agents in a collapsible section
  */
 const CollapsibleSubAgentsSection: React.FC<{
@@ -2758,16 +3061,17 @@ const CollapsibleSubAgentsSection: React.FC<{
   expandedAgents: Set<string>;
   onToggleSection: () => void;
   onToggleAgent: (agentId: string) => void;
-}> = ({ agents, isExpanded, expandedAgents, onToggleSection, onToggleAgent }) => {
+  theme: Theme;
+}> = ({ agents, isExpanded, expandedAgents, onToggleSection, onToggleAgent, theme }) => {
   return (
-    <box style={{ marginTop: 1, marginBottom: 1 }}>
+    <box style={{ marginTop: 1, marginBottom: 1, maxHeight: 20, flexShrink: 0 }}>
       {/* Section header - always visible */}
       <box
         style={{ flexDirection: 'row', paddingLeft: 1 }}
         onMouseUp={onToggleSection}
       >
-        <text content={isExpanded ? '[-]' : '[+]'} fg="magenta" bold />
-        <text content=" Background Agents " fg="magenta" bold />
+        <text content={isExpanded ? '[-]' : '[+]'} fg={theme.colors.primary} bold />
+        <text content=" Background Agents " fg={theme.colors.primary} bold />
         {agents.length > 0 && (
           <>
             <text content={`(${agents.length})`} fg="gray" />
@@ -2781,15 +3085,32 @@ const CollapsibleSubAgentsSection: React.FC<{
         )}
       </box>
 
-      {/* Agent list - only when section expanded */}
-      {isExpanded && agents.length > 0 && agents.map(agent => (
-        <SubAgentTaskBox
-          key={agent.id}
-          agent={agent}
-          isExpanded={expandedAgents.has(agent.id)}
-          onToggle={() => onToggleAgent(agent.id)}
-        />
-      ))}
+      {/* Agent list - only when section expanded, with scrolling */}
+      {isExpanded && agents.length > 0 && (
+        <scrollbox
+          scrollX={false}
+          style={{
+            maxHeight: 18,
+            flexShrink: 0
+          }}
+          options={{
+            style: {
+              scrollbar: {
+                bg: 'gray'
+              }
+            }
+          }}
+        >
+          {agents.map(agent => (
+            <SubAgentTaskBox
+              key={agent.id}
+              agent={agent}
+              isExpanded={expandedAgents.has(agent.id)}
+              onToggle={() => onToggleAgent(agent.id)}
+            />
+          ))}
+        </scrollbox>
+      )}
 
       {/* Empty state message */}
       {isExpanded && agents.length === 0 && (
@@ -2798,6 +3119,92 @@ const CollapsibleSubAgentsSection: React.FC<{
           <text content="When agents spawn in the background, they will appear here." fg="gray" />
           <text content="Press Ctrl+O to close this panel." fg="gray" />
         </box>
+      )}
+    </box>
+  );
+};
+
+/**
+ * MiniAgentPreview - Compact preview of agents shown when panel is collapsed
+ * One row per agent with: status dot, ID, current tool/task, progress
+ */
+const MiniAgentPreview: React.FC<{
+  agents: SubAgent[];
+  onExpand: () => void;
+  theme: Theme;
+}> = ({ agents, onExpand, theme }) => {
+  if (agents.length === 0) return null;
+
+  // Status symbols for inline display
+  const getStatusSymbol = (status: string) => {
+    switch (status) {
+      case 'running': return '●';
+      case 'done': return '✓';
+      case 'error': return '✗';
+      case 'waiting': return '○';
+      default: return '·';
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'running': return 'cyan';
+      case 'done': return 'green';
+      case 'error': return 'red';
+      case 'waiting': return 'yellow';
+      default: return 'gray';
+    }
+  };
+
+  return (
+    <box
+      style={{
+        marginBottom: 0,
+        paddingLeft: 1,
+        paddingRight: 1,
+        flexShrink: 0,
+        backgroundColor: '#1a1a1a'
+      }}
+      border={true}
+      borderStyle="single"
+      borderColor="#444444"
+      onMouseUp={onExpand}
+    >
+      {/* Header row */}
+      <text
+        content={`[+] ${agents.length} agent${agents.length !== 1 ? 's' : ''} (click to expand)`}
+        fg={theme.colors.muted}
+      />
+      {/* Agent rows - max 3 visible */}
+      {agents.slice(0, 3).map((agent) => {
+        const symbol = getStatusSymbol(agent.status);
+        const color = getStatusColor(agent.status);
+        const agentId = agent.id.slice(0, 7);
+        const model = agent.model?.split('-')[0] || '';
+        const progress = agent.progress ? ` ${agent.progress.percent}%` : '';
+
+        // Get last meaningful line from output, clean it up
+        const lastLine = agent.liveOutput
+          ?.split('\n')
+          .filter(l => l.trim())
+          .slice(-1)[0]
+          ?.replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 60) || '';
+
+        // Build the full line as a single string
+        const line = `${symbol} ${agentId} ${model}${progress}${lastLine ? ` - ${lastLine}` : ''}`;
+
+        return (
+          <text
+            key={`mini-${agent.id}`}
+            content={line}
+            fg={color}
+          />
+        );
+      })}
+      {agents.length > 3 && (
+        <text content={`  +${agents.length - 3} more...`} fg="gray" />
       )}
     </box>
   );
@@ -2902,7 +3309,7 @@ const ChatApp: React.FC<{
   const [state, updateState] = useBatchedState<AppState>({
     messages: initialMessages,
     isResponding: false,
-    currentModel: resumeSession?.model || 'fast',
+    currentModel: resumeSession?.model || 'smart-sonnet',
     sessionId: resumeSession?.sessionId,
     thinkingSessions: [],
     usedToolsInCurrentResponse: new Set(),
@@ -2910,7 +3317,6 @@ const ChatApp: React.FC<{
     showTaskList: false,
     expandedToolIds: new Set(),
     currentToolId: undefined,
-    messageScrollOffset: 0,
     inputTokens: resumeSession?.inputTokens || 0,
     outputTokens: resumeSession?.outputTokens || 0,
     agentMode: 'coding',
@@ -2929,7 +3335,13 @@ const ChatApp: React.FC<{
     selectedThemeIndex: DEFAULT_THEMES.findIndex((t) => t.name === getInitialTheme().name),
     // Status bar popup state
     activeStatusPopup: null,
-    selectedPopupIndex: 0
+    selectedPopupIndex: 0,
+    // Agent message pagination state
+    agentMessagesVisible: new Map(),
+    expandedAgentMessageIds: new Set(),
+    activeAgentTabId: null,
+    // Session switching state
+    pendingSessionSwitch: undefined
   });
 
   // Initialize session data ref if resuming
@@ -2941,6 +3353,7 @@ const ChatApp: React.FC<{
 
   // Fast Mode Orchestrator - triages and delegates to sub-agents
   const orchestratorRef = useRef<FastModeCoordinator | null>(null);
+  const activeOrchestrationContextIdRef = useRef<string | null>(null);
 
   // Smart message queue
   const messageQueueRef = useRef<SmartMessageQueue>(new SmartMessageQueue(30_000, TODOS_FILE));
@@ -3098,7 +3511,7 @@ const ChatApp: React.FC<{
       const aiToolsStart = Date.now();
       try {
         debugLog('AI Tools: Getting instance...');
-        const tools = AiToolsService.getInstance(process.cwd());
+        const tools = AiToolsService.create(process.cwd());
         debugLog(`AI Tools: Instance created in ${Date.now() - aiToolsStart}ms`);
 
         // Attach listeners
@@ -3568,59 +3981,20 @@ You cannot invoke these slash commands yourself directly via tool calls; they mu
           onSubAgentEvent: (event) => {
             debugLog(`SubAgent event: ${event.type} from ${event.agentId}`);
 
-            // Handle different event types
-            if (event.type === 'streaming') {
-              // Forward streaming text to main chat
-              updateState((prev) => {
-                const lastMsg = prev.messages[prev.messages.length - 1];
-                if (lastMsg?.role === 'assistant') {
-                  return {
-                    subAgents: orchestrator.getSubAgents(),
-                    messages: [
-                      ...prev.messages.slice(0, -1),
-                      { ...lastMsg, content: lastMsg.content + event.text }
-                    ]
-                  };
-                } else {
-                  return {
-                    subAgents: orchestrator.getSubAgents(),
-                    messages: [
-                      ...prev.messages,
-                      { role: 'assistant', content: event.text, timestamp: new Date(), model: prev.currentModel }
-                    ]
-                  };
-                }
-              });
-            } else if (event.type === 'toolStart') {
-              updateState({
-                subAgents: orchestrator.getSubAgents(),
-                currentTool: event.toolName
-              });
+            // Always keep the agents panel in sync (liveOutput updates are held on the agent objects)
+            updateState({ subAgents: orchestrator.getSubAgents() });
+
+            if (event.type === 'toolStart') {
+              updateState({ currentTool: event.toolName });
             } else if (event.type === 'toolComplete') {
-              updateState({
-                subAgents: orchestrator.getSubAgents(),
-                currentTool: undefined
-              });
-            } else if (event.type === 'completed') {
-              updateState({
-                subAgents: orchestrator.getSubAgents(),
-                isResponding: false,
-                currentTool: undefined,
-                usedToolsInCurrentResponse: new Set()
-              });
+              updateState({ currentTool: undefined });
             } else if (event.type === 'failed') {
               updateState((prev) => ({
-                subAgents: orchestrator.getSubAgents(),
-                isResponding: false,
-                usedToolsInCurrentResponse: new Set(),
                 messages: [
                   ...prev.messages,
                   { role: 'system', content: `[x] Agent error: ${event.error}`, timestamp: new Date() }
                 ]
               }));
-            } else {
-              // Other events - just update subAgents
-              updateState({ subAgents: orchestrator.getSubAgents() });
             }
           }
         });
@@ -3677,6 +4051,13 @@ You cannot invoke these slash commands yourself directly via tool calls; they mu
       return;
     }
 
+    // Auto/orchestrated mode: smart queue injection targets the direct session only.
+    if (state.currentModel === 'auto') {
+      updateState({ queuedMessages: 0 });
+      messageQueueRef.current.clear();
+      return;
+    }
+
     // Check every 1 second for messages to inject
     const interval = setInterval(async () => {
       if (messageQueueRef.current.shouldAutoInject()) {
@@ -3705,15 +4086,145 @@ You cannot invoke these slash commands yourself directly via tool calls; they mu
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [state.isResponding]);
+  }, [state.isResponding, state.currentModel]);
 
   const handleSubmit = useCallback(
     async (segments: InputSegment[]) => {
       const displayText = segmentsToDisplayString(segments).trim();
       if (!displayText) return;
 
+      // Handle pending session switch
+      if (state.pendingSessionSwitch?.prompted) {
+        const selection = displayText.toLowerCase().trim();
+        if (selection === '0' || selection === 'cancel') {
+          updateState((prev) => ({
+            pendingSessionSwitch: undefined,
+            messages: [
+              ...prev.messages,
+              { role: 'system', content: '[✗] Session switch cancelled.', timestamp: new Date() }
+            ]
+          }));
+          setInputSegments([{ type: 'text', text: '' }]);
+          setCursorPosition(0);
+          return;
+        }
+
+        const idx = parseInt(selection) - 1;
+        const sessions = state.pendingSessionSwitch.availableSessions;
+        if (idx >= 0 && idx < sessions.length) {
+          const selectedSession = sessions[idx];
+          if (selectedSession.sessionId === sessionDataRef.current?.sessionId) {
+            updateState((prev) => ({
+              pendingSessionSwitch: undefined,
+              messages: [
+                ...prev.messages,
+                { role: 'system', content: '[ℹ] Already in this session.', timestamp: new Date() }
+              ]
+            }));
+            setInputSegments([{ type: 'text', text: '' }]);
+            setCursorPosition(0);
+            return;
+          }
+
+          // Auto-save current session
+          if (sessionDataRef.current) {
+            await autoSaveSession();
+            await completeSession(sessionDataRef.current);
+          }
+
+          // Load the selected session
+          try {
+            const newSession = await loadSession(selectedSession.filePath);
+            if (newSession) {
+              sessionDataRef.current = newSession;
+              // Reset state with new session
+              const newMessages: Message[] = [
+                { role: 'system', content: LOGO, timestamp: new Date() },
+                { role: 'system', content: generateStartupBanner(newSession.model, process.cwd(), authType, newSession.sessionId), timestamp: new Date(), isBanner: true },
+                { role: 'system', content: `[↻] Switched to session ${newSession.sessionId.slice(0, 8)}... (${newSession.messages.length} messages)`, timestamp: new Date() },
+                ...newSession.messages.map((m) => ({
+                  role: m.role,
+                  content: m.content,
+                  timestamp: new Date(m.timestamp),
+                  toolName: m.toolName,
+                  toolInput: m.toolInput,
+                  toolResult: m.toolResult,
+                  isCollapsed: m.role === 'tool'
+                }))
+              ];
+
+              updateState((prev) => ({
+                pendingSessionSwitch: undefined,
+                messages: newMessages,
+                sessionId: newSession.sessionId,
+                currentModel: newSession.model,
+                inputTokens: newSession.inputTokens,
+                outputTokens: newSession.outputTokens
+              }));
+            }
+          } catch (err) {
+            updateState((prev) => ({
+              pendingSessionSwitch: undefined,
+              messages: [
+                ...prev.messages,
+                { role: 'system', content: `[✗] Failed to load session: ${err instanceof Error ? err.message : 'Unknown error'}`, timestamp: new Date() }
+              ]
+            }));
+          }
+          setInputSegments([{ type: 'text', text: '' }]);
+          setCursorPosition(0);
+          return;
+        } else {
+          updateState((prev) => ({
+            messages: [
+              ...prev.messages,
+              { role: 'system', content: `[✗] Invalid selection. Please enter a number between 1 and ${sessions.length}.`, timestamp: new Date() }
+            ]
+          }));
+          setInputSegments([{ type: 'text', text: '' }]);
+          setCursorPosition(0);
+          return;
+        }
+      }
+
       // If Claude is responding, queue the message instead of sending
       if (state.isResponding && !displayText.startsWith('/')) {
+        // Auto/orchestrated mode: avoid injecting into the direct session.
+        // Urgent messages stop the orchestration; other messages are rejected for now.
+        if (state.currentModel === 'auto') {
+          const urgent =
+            /^(NO|STOP|WAIT|DONT|DON'T|NEVER|CANCEL|ABORT|!!|CRITICAL|URGENT|ERROR|ALERT)/i.test(displayText);
+
+          if (urgent) {
+            const orchId = activeOrchestrationContextIdRef.current;
+            if (orchId && orchestratorRef.current) {
+              void orchestratorRef.current.interruptContext(orchId, 'Urgent user message');
+              activeOrchestrationContextIdRef.current = null;
+            }
+
+            updateState((prev) => ({
+              messages: [
+                ...prev.messages,
+                { role: 'system', content: `[!] Stopping Auto orchestration: ${displayText}`, timestamp: new Date() }
+              ]
+            }));
+
+            setInputSegments([{ type: 'text', text: '' }]);
+            setCursorPosition(0);
+            return;
+          }
+
+          updateState((prev) => ({
+            messages: [
+              ...prev.messages,
+              { role: 'system', content: '[i] Auto mode does not support queued messages yet. Wait for completion or press Ctrl+X×2 to stop.', timestamp: new Date() }
+            ]
+          }));
+          setInputSegments([{ type: 'text', text: '' }]);
+          setCursorPosition(0);
+          return;
+        }
+
         const msg = messageQueueRef.current.add(displayText);
         updateState((prev) => ({
           queuedMessages: messageQueueRef.current.getPendingCount(),
@@ -3777,6 +4288,7 @@ You cannot invoke these slash commands yourself directly via tool calls; they mu
 /model <name>   - Switch model (auto/fast/haiku/sonnet/opus)
 /theme          - Open theme picker
 /sessions       - List saved sessions
+/session        - Switch to another session
 /logout         - Clear authentication
 /toggle-grey-tools - Toggle greying out finished tools
 
@@ -3883,6 +4395,51 @@ Urgent keywords inject immediately
             { role: 'system', content: sessionList, timestamp: new Date() }
           ]
         }));
+        return;
+      }
+
+      // Handle /session - switch to another session
+      if (displayText === '/session') {
+        const allSessions = await listSessions();
+
+        if (allSessions.length <= 1) {
+          updateState((prev) => ({
+            messages: [
+              ...prev.messages,
+              { role: 'system', content: '[ℹ] No other sessions available to switch to.', timestamp: new Date() }
+            ]
+          }));
+          setInputSegments([{ type: 'text', text: '' }]);
+          setCursorPosition(0);
+          return;
+        }
+
+        // List all sessions with indices for user selection
+        let sessionsList = '[🔄] Select a session to switch to:\n\n';
+        for (let i = 0; i < allSessions.length; i++) {
+          const s = allSessions[i];
+          const isCurrent = sessionDataRef.current?.sessionId === s.sessionId;
+          const current = isCurrent ? ' ← current' : '';
+          const status = s.status === 'active' ? '●' : '○';
+          const date = new Date(s.updatedAt).toLocaleDateString();
+          const time = new Date(s.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          sessionsList += `  ${i + 1}. ${status} [${s.sessionId.slice(0, 8)}] ${date} ${time} - ${s.messageCount} msgs${current}\n`;
+          sessionsList += `     ${s.preview}\n`;
+        }
+        sessionsList += `\nEnter session number (1-${allSessions.length}) or 0 to cancel:`;
+
+        updateState((prev) => ({
+          messages: [
+            ...prev.messages,
+            { role: 'system', content: sessionsList, timestamp: new Date() }
+          ],
+          pendingSessionSwitch: {
+            availableSessions: allSessions,
+            prompted: true
+          }
+        }));
+        setInputSegments([{ type: 'text', text: '' }]);
+        setCursorPosition(0);
         return;
       }
 
@@ -4189,6 +4746,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
         updateState((prev) => ({
           inputTokens: 0,
           outputTokens: 0,
+          thinkingSessions: [],
           messages: [
             {
               role: 'system',
@@ -4239,7 +4797,9 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
         const model = modelMap[modelArg.toLowerCase()];
         if (model) {
           try {
-            await session?.setModel(model);
+            if (model !== 'auto') {
+              await session?.setModel(model);
+            }
             updateState((prev) => ({
               currentModel: model,
               messages: [
@@ -4401,16 +4961,70 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
           messageContent = messageWithoutModelPrefix;
         }
 
-        // Use direct session for now (orchestrator disabled for testing)
-        // TODO: Re-enable orchestrator once sub-agent sessions are working
-        if (session) {
-          debugLog('Using direct session...');
-          console.error(`[SEND] Sending message: "${messageContent.slice(0, 50)}..."`);
-          console.error(`[SEND] Session active: ${session.isActive()}`);
-          await session.sendMessage({ role: 'user', content: messageContent });
-          console.error(`[SEND] Message queued to SDK`);
+        const shouldOrchestrate = !modelOverride && state.currentModel === 'auto';
+        if (shouldOrchestrate) {
+          const orchestrator = orchestratorRef.current;
+          if (!orchestrator) {
+            throw new Error('Orchestrator not initialized');
+          }
+
+          updateState((prev) => ({
+            messages: [
+              ...prev.messages,
+              { role: 'system', content: '[A] Orchestrating… (open Agents panel to watch)', timestamp: new Date() }
+            ],
+            subAgentsSectionExpanded: true
+          }));
+
+          const referencedFiles = segments
+            .filter((s) => s.type === 'chip')
+            .map((s) => (s as { type: 'chip'; chip: FileChip }).chip.filePath);
+
+          const recentMessages = state.messages
+            .filter((m) => m.role === 'user' || m.role === 'assistant')
+            .slice(-12)
+            .map((m) => ({ role: m.role, content: m.content }));
+
+          const { contextId, done } = await orchestrator.start({
+            content: messageContent,
+            priority: 'NORMAL',
+            context: {
+              files: referencedFiles,
+              previousMessages: recentMessages
+            }
+          });
+
+          activeOrchestrationContextIdRef.current = contextId;
+
+          done
+            .then((response) => {
+              activeOrchestrationContextIdRef.current = null;
+              updateState((prev) => ({
+                isResponding: false,
+                currentTool: undefined,
+                usedToolsInCurrentResponse: new Set(),
+                messages: [
+                  ...prev.messages,
+                  { role: 'assistant', content: response, timestamp: new Date(), model: 'auto' }
+                ]
+              }));
+            })
+            .catch((err) => {
+              activeOrchestrationContextIdRef.current = null;
+              updateState((prev) => ({
+                isResponding: false,
+                messages: [
+                  ...prev.messages,
+                  { role: 'system', content: `[x] Orchestration error: ${String(err)}`, timestamp: new Date() }
+                ]
+              }));
+            });
         } else {
-          throw new Error('No session available');
+          if (!session) {
+            throw new Error('No session available');
+          }
+          debugLog('Using direct session...');
+          await session.sendMessage({ role: 'user', content: messageContent });
         }
 
         debugLog('Message sent successfully');
@@ -4425,7 +5039,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
         }));
       }
     },
-    [session, state.isResponding, state.aiTools, state.contextChips]
+    [session, state.isResponding, state.aiTools, state.contextChips, state.currentModel, state.messages]
   );
   // Handle special keyboard shortcuts
   useKeyboard((key: KeyEvent) => {
@@ -4449,32 +5063,6 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
         charCode
       })}`
     );
-
-    // Handle mouse wheel events - scroll messages list
-    // SGR format: \x1b[<64;x;yM (scroll up) or \x1b[<65;x;yM (scroll down)
-    // Also check for 68/69 (with modifiers like shift)
-    if (key.sequence) {
-      const seq = key.sequence;
-      // Scroll up (wheel up): button codes 64, 68
-      if (seq.includes('<64;') || seq.includes('<68;')) {
-        updateState((prev) => {
-          // No strict max offset for lines, let it grow
-          return {
-            ...prev,
-            messageScrollOffset: prev.messageScrollOffset + 5
-          };
-        });
-        return;
-      }
-      // Scroll down (wheel down): button codes 65, 69
-      if (seq.includes('<65;') || seq.includes('<69;')) {
-        updateState((prev) => ({
-          ...prev,
-          messageScrollOffset: Math.max(0, prev.messageScrollOffset - 5)
-        }));
-        return;
-      }
-    }
 
     // Ctrl+C to quit - first press clears input, second press quits
     if (key.ctrl && key.name === 'c') {
@@ -4507,10 +5095,12 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
     if ((key.ctrl || key.meta) && key.name === 'v') {
       try {
         // Use pbpaste on macOS, xclip on Linux
-        const clipboardText =
+        const rawClipboardText =
           process.platform === 'darwin' ?
             execSync('pbpaste', { encoding: 'utf-8' })
           : execSync('xclip -selection clipboard -o', { encoding: 'utf-8' });
+
+        const clipboardText = SecurityValidator.sanitizeClipboard(rawClipboardText);
 
         if (clipboardText) {
           setInputSegments((prev) => {
@@ -4535,7 +5125,14 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
       if (state.isResponding) {
         if (ctrlXPressedOnce) {
           // Second press - actually stop
-          session?.interrupt();
+          const orchId = activeOrchestrationContextIdRef.current;
+          if (orchId && orchestratorRef.current) {
+            void orchestratorRef.current.interruptContext(orchId, 'User requested stop');
+            activeOrchestrationContextIdRef.current = null;
+            updateState({ isResponding: false, currentTool: undefined });
+          } else {
+            void session?.interrupt();
+          }
           setCtrlXPressedOnce(false);
           setShowStopWarning(false);
         } else {
@@ -4625,9 +5222,9 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
     }
 
     // Handle Model Dialog selection
-    if (showModelDialog && (key.name === 'return' || key.name === 'space')) {
+    if (showModelDialog && (key.name === 'return' || key.name === 'space') && !key.shift) {
       const selected = models[selectedModelIndex];
-      switchModel(selected.display as 'fast' | 'smart-sonnet' | 'smart-opus', session, updateState);
+      switchModel(selected.display as 'auto' | 'fast' | 'smart-sonnet' | 'smart-opus', session, updateState);
       setShowModelDialog(false);
       return;
     }
@@ -4643,13 +5240,13 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
     }
 
     // Handle Provider Dialog selection
-    if (showProviderDialog && (key.name === 'return' || key.name === 'space')) {
+    if (showProviderDialog && (key.name === 'return' || key.name === 'space') && !key.shift) {
       updateState((prev) => ({
         messages: [
           ...prev.messages,
           {
             role: 'system',
-            content: `[→] Switched to provider: ${providers[selectedProviderIndex].name}`,
+            content: `[i] Provider switching not implemented yet (Anthropic only). Selected: ${providers[selectedProviderIndex].name}`,
             timestamp: new Date()
           }
         ]
@@ -4696,7 +5293,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
     }
 
     // Handle Theme Picker selection
-    if (state.showThemePicker && (key.name === 'return' || key.name === 'space')) {
+    if (state.showThemePicker && (key.name === 'return' || key.name === 'space') && !key.shift) {
       setPreviewTheme(null);
       setThemeSearch('');
       updateState({ showThemePicker: false });
@@ -4724,7 +5321,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
     }
 
     // Handle Status Bar Popup selection (Enter/Space)
-    if (state.activeStatusPopup && (key.name === 'return' || key.name === 'space')) {
+    if (state.activeStatusPopup && (key.name === 'return' || key.name === 'space') && !key.shift) {
       const popupType = state.activeStatusPopup;
 
       if (popupType === 'model') {
@@ -4742,22 +5339,6 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
         // Close other popups on Enter
         updateState({ activeStatusPopup: null });
       }
-      return;
-    }
-
-    // Page Up/Down for message scrolling
-    if (key.name === 'pageup') {
-      // Scroll back (increase offset)
-      updateState((prev) => ({
-        messageScrollOffset: prev.messageScrollOffset + 15
-      }));
-      return;
-    }
-    if (key.name === 'pagedown') {
-      // Scroll forward (decrease offset)
-      updateState((prev) => ({
-        messageScrollOffset: Math.max(0, prev.messageScrollOffset - 15)
-      }));
       return;
     }
 
@@ -4793,31 +5374,11 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
       return;
     }
 
-    // Ctrl+N to scroll messages down (next page)
-    if (key.ctrl && key.name === 'n') {
-      updateState((prev) => ({
-        messageScrollOffset: Math.max(0, prev.messageScrollOffset - 5)
-      }));
-      return;
-    }
-
     // Ctrl+O to toggle sub-agents section expansion
     if (key.ctrl && key.name === 'o') {
       updateState((prev) => ({
         subAgentsSectionExpanded: !prev.subAgentsSectionExpanded
       }));
-      return;
-    }
-
-    // Ctrl+P to scroll messages up (previous page)
-    if (key.ctrl && key.name === 'p') {
-      updateState((prev) => {
-        // No strict max offset for lines, just let it scroll back
-        return {
-          ...prev,
-          messageScrollOffset: prev.messageScrollOffset + 5
-        };
-      });
       return;
     }
 
@@ -4967,17 +5528,18 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
             isInclude
           };
 
-          // Remove the pattern from text and add context chip + space
+          // Remove the pattern from text and replace with space
           const textWithoutPattern = lastSegment.text.slice(0, -fullMatch.length);
+          const newText = textWithoutPattern + ' ';
           setInputSegments((prev) => {
             const segments = [...prev.slice(0, -1)];
-            if (textWithoutPattern) {
-              segments.push({ type: 'text', text: textWithoutPattern });
-            }
-            segments.push({ type: 'context', context: newChip });
-            segments.push({ type: 'text', text: ' ' });
+            // Add back the text (if any) with a space appended
+            segments.push({ type: 'text', text: newText });
             return segments;
           });
+
+          // Update cursor to be at the end of the new text (after the space)
+          setCursorPosition(newText.length);
 
           // Add to active context chips
           updateState((prev) => ({ contextChips: [...prev.contextChips, newChip] }));
@@ -5150,40 +5712,27 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
     };
   }, [updateState]);
 
+  // Calculate dynamic input height based on content
+  const inputHeight = useMemo(() => {
+    // Count newlines in text segments
+    const textSegments = inputSegments.filter((s) => s.type === 'text');
+    const totalText = textSegments.map((s) => s.text).join('');
+    const lineCount = (totalText.match(/\n/g) || []).length + 1;
+
+    // Base: 2 for borders + 1 for input line
+    let height = 2 + lineCount;
+
+    // Add 2 lines if context chips are present (for the chips row + separator)
+    if (state.contextChips.length > 0) {
+      height += 2;
+    }
+
+    return height;
+  }, [inputSegments, state.contextChips.length]);
+
   // Calculate visible messages (with scroll offset) dynamically based on available lines
-  const { visibleMessages, scrollOffset } = useMemo(() => {
-    const config = {
-      inputHeight: 3,
-      statusHeight: 2,
-      paddingHeight: 2,
-      toolChipsHeight: (state.thinkingSessions.length > 0 || state.currentTool || state.messages.some(m => m.role === 'tool')) ? 2 : 0,
-      contextChipsHeight: state.contextChips.length > 0 ? 2 : 0
-    };
-
-    const availableRows = calculateAvailableRows(terminalSize, config);
-    
-    // Use the new line-based calculator
-    const result = calculateVisibleMessages(
-      state.messages,
-      state.messageScrollOffset,
-      availableRows,
-      terminalSize.columns,
-      state.expandedToolIds
-    );
-
-    return {
-      visibleMessages: result,
-      scrollOffset: state.messageScrollOffset
-    };
-  }, [
-    state.messages, 
-    state.messageScrollOffset, 
-    terminalSize, 
-    state.thinkingSessions.length, 
-    state.currentTool, 
-    state.contextChips.length,
-    state.expandedToolIds
-  ]);
+  // Use all messages - scrollbox handles viewport management
+  const visibleMessages = state.messages;
 
   // Compute grouped tool activity for chips display
   const toolActivity = useMemo(() => extractToolActivity(state.messages, state.greyOutFinishedTools), [state.messages, state.greyOutFinishedTools]);
@@ -5203,296 +5752,241 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
   return (
     <box style={{ flexDirection: 'column', height: '100%' }}>
       {/* Messages area */}
-      <box
+      <scrollbox
+        stickyScroll
+        stickyStart="bottom"
+        scrollX={false}
+        scrollbarOptions={{ visible: false }}
+        verticalScrollbarOptions={{
+          visible: state.messages.length > 10,
+          trackOptions: { width: 1 }
+        }}
         style={{
-          flexDirection: 'column',
           flexGrow: 1,
-          paddingLeft: 1,
-          paddingRight: 1,
-          paddingTop: 1,
-          overflow: 'hidden'
+          rootOptions: {
+            flexGrow: 1,
+            padding: 0,
+            gap: 0,
+            flexDirection: 'row',
+            backgroundColor: 'transparent'
+          },
+          wrapperOptions: {
+            flexGrow: 1,
+            border: false,
+            backgroundColor: 'transparent',
+            flexDirection: 'column'
+          },
+          contentOptions: {
+            flexDirection: 'column',
+            gap: 0,
+            justifyContent: 'flex-end',
+            backgroundColor: 'transparent',
+            paddingLeft: 1,
+            paddingRight: 1,
+            paddingTop: 1
+          }
         }}
       >
-        {visibleMessages
-          .filter((msg) => msg.role !== 'tool') 
-          .map((msg, i) => {
+        {(() => {
+          // Group consecutive tool messages together for inline display
+          const elements: React.ReactNode[] = [];
+          let toolGroup: typeof visibleMessages = [];
+
+          const flushToolGroup = () => {
+            if (toolGroup.length === 0) return;
+
+            // Aggregate tool messages by name
+            const toolCounts = new Map<string, number>();
+            toolGroup.forEach(msg => {
+              const name = msg.toolName || 'tool';
+              toolCounts.set(name, (toolCounts.get(name) || 0) + 1);
+            });
+
+            elements.push(
+              <box
+                key={`tool-group-${toolGroup[0].timestamp.getTime()}`}
+                style={{ flexDirection: 'row', flexWrap: 'wrap', paddingLeft: 1, marginBottom: 1 }}
+              >
+                {Array.from(toolCounts.entries()).map(([name, count]) => (
+                  <text
+                    key={`tool-${name}-${toolGroup[0].timestamp.getTime()}`}
+                    content={` ${name.toLowerCase()}${count > 1 ? ` x${count}` : ''} `}
+                    fg="black"
+                    bg={activeTheme.colors.toolChip}
+                    style={{ marginRight: 1 }}
+                  />
+                ))}
+              </box>
+            );
+            toolGroup = [];
+          };
+
+          visibleMessages.forEach((msg, i) => {
             const key = `${msg.timestamp.getTime()}-${msg.role}-${i}`;
 
-            // Handle partial visibility (cropping)
-            // Default: show everything
-            // Header is line 0
-            // Content starts at line 1
-            // Spacer is the last line
-            
-            // Determine render range [startLine, endLine) relative to this message
-            // If visibleLines is undefined, we render everything.
-            // If defined, we only render items whose line index falls in range.
-            
-            const startLine = msg.visibleLines ? msg.visibleLines.start : 0;
-            // Note: visibleLines.end is exclusive in our logic, or inclusive? 
-            // In pagination.ts: "visibleEnd = msgHeight - linesToSkip" -> exclusive upper bound
-            const endLine = msg.visibleLines ? msg.visibleLines.end : 999999;
-
-            // 1. Render Header? (Line 0)
-            const showHeader = startLine <= 0;
-            
-            // 2. Render Content? 
-            // Content spans from line 1 to (1 + contentLines)
-            // We need to slice content based on intersection with [startLine, endLine]
-            let contentToRender: string | null = null;
-            
-            if (msg.content) {
-              const lines = msg.content.split('\n');
-              const contentHeight = lines.length; // Approximate, ignoring wrapping for slice logic implies we might be slightly off if wrapping happens, but it's consistent with our height calc if we are careful. 
-              // Wait, our height calc accounted for wrapping.
-              // Slicing unwrapped lines is risky if we estimated using wrapped lines.
-              // BUT, usually 1 newline = 1 row unless long.
-              // For simplicity in V1 refactor: Slice by newline index.
-              // Real mapping: Line 1 maps to content line 0.
-              
-              const contentStartRow = 1;
-              const contentEndRow = 1 + contentHeight; // This assumes no wrapping for mapping purposes, which is a limitation.
-              // Fix: We can't easily map wrapped rows to source lines without re-wrapping.
-              // Compromise: Just render full content if ANY part of content is visible?
-              // No, that defeats the purpose of scrolling through a long block.
-              // We MUST slice.
-              
-              // Let's assume most long content is code/logs which are short lines.
-              // We calculate how many rows we are skipping from the top of content.
-              // skipRows = Math.max(0, startLine - 1)
-              // We calculate how many rows we keep.
-              
-              // Actually, renderMarkdown takes a string.
-              // We slice the string by lines.
-              const contentSliceStart = Math.max(0, startLine - 1);
-              const contentSliceEnd = Math.max(0, endLine - 1);
-              
-              if (contentSliceEnd > contentSliceStart) {
-                // If we are slicing, we might break markdown blocks.
-                // We'll just slice the text.
-                contentToRender = lines.slice(contentSliceStart, contentSliceEnd).join('\n');
-              }
+            if (msg.role === 'tool') {
+              toolGroup.push(msg);
+              return;
             }
 
-            if (msg.role === 'user') {
-              // const hasMarkdown = isMarkdown(msg.content); 
-              // Only check markdown on the *rendered* slice to avoid half-broken tokens?
-              // Actually better to check original, but render slice.
-              
-              if (!contentToRender) return null; // Nothing visible
+            // Flush any pending tool group before rendering non-tool message
+            flushToolGroup();
 
-              return (
+            if (msg.role === 'user') {
+              elements.push(
                 <box key={key} style={{ flexDirection: 'column', marginBottom: 1 }}>
                   <box
-                    border={true}
-                    borderStyle="rounded"
-                    borderColor={activeTheme.colors.userMessage}
-                    style={{ paddingLeft: 1, paddingRight: 1, paddingTop: 0, paddingBottom: 0, minHeight: 3 }}
+                    style={{ paddingLeft: 1, paddingRight: 1, paddingTop: 0, paddingBottom: 0 }}
                     bg="blackBright"
                   >
-                    {renderMarkdown(contentToRender)}
+                    {renderMarkdown(msg.content)}
                   </box>
                 </box>
               );
+              return;
             }
 
             if (msg.role === 'assistant') {
               const modelDisplay = msg.model ? getModelDisplayFromPreference(msg.model) : null;
-              
-              // Only render if we have content or header is visible
-              if (!showHeader && !contentToRender) return null;
 
-              return (
+              elements.push(
                 <box key={key} style={{ flexDirection: 'row', marginBottom: 1 }}>
                   <box
-                    border={true}
-                    borderStyle="rounded"
-                    borderColor="gray"
-                    style={{ paddingLeft: 1, paddingRight: 1, paddingTop: 0, paddingBottom: 0, flexGrow: 1, minHeight: 3 }}
+                    style={{ paddingLeft: 1, paddingRight: 1, paddingTop: 0, paddingBottom: 0, flexGrow: 1 }}
                     bg="blackBright"
-                    label={showHeader ? ` Assistant ${modelDisplay ? `${modelDisplay}` : ''} ` : undefined}
+                    label={` Assistant ${modelDisplay ? `${modelDisplay}` : ''} `}
                     labelPosition="left"
                   >
-                     {contentToRender ? renderMarkdown(contentToRender, 'gray') : null}
+                    {renderMarkdown(msg.content, 'gray')}
                   </box>
                 </box>
               );
+              return;
             }
 
             if (msg.role === 'system') {
-              // Special styling for logo
+              // Special styling for logo - no margin after logo
               const isLogo = msg.content.includes(',gggg,');
               if (isLogo) {
-                return showHeader ? (
+                elements.push(
                   <box key={key} style={{ marginBottom: 0 }}>
                     <text content={msg.content} fg={activeTheme.colors.primary} />
                   </box>
-                ) : null;
-              }
-              
-              // For system messages, just render if header (line 0) is visible?
-              // System messages are usually short.
-              if (showHeader) {
-                 // ... (existing system message logic)
-                 // Special styling for startup banner
-                if (msg.isBanner) {
-                    return (
-                    <box key={key} style={{ marginBottom: 0 }}>
-                        <text content={msg.content} fg={activeTheme.colors.accent} />
-                    </box>
-                    );
-                }
-                // Session resume or keyboard hints
-                if (msg.content.includes('[↻]') || msg.content.startsWith('Keyboard:')) {
-                    return (
-                    <box key={key} style={{ marginBottom: 1 }}>
-                        <text content={msg.content} fg={activeTheme.colors.muted} />
-                    </box>
-                    );
-                }
-                return (
-                    <box key={key} style={{ marginBottom: 0 }}>
-                    <text content={msg.content} fg={activeTheme.colors.systemMessage} />
-                    </box>
                 );
+                return;
               }
-              return null;
+
+              // Special styling for startup banner - no margin after banner
+              if (msg.isBanner) {
+                elements.push(
+                  <box key={key} style={{ marginBottom: 0 }}>
+                    <text content={msg.content} fg={activeTheme.colors.accent} />
+                  </box>
+                );
+                return;
+              }
+
+              // All other system messages get consistent spacing
+              elements.push(
+                <box key={key} style={{ marginBottom: 1 }}>
+                  <text content={msg.content} fg={msg.content.includes('[↻]') || msg.content.startsWith('Keyboard:') ? activeTheme.colors.muted : activeTheme.colors.systemMessage} />
+                </box>
+              );
+              return;
             }
+          });
 
-            return null;
-          })}
+          // Flush any remaining tool group at the end
+          flushToolGroup();
 
-        {/* Scroll indicators */}
-        {scrollOffset > 0 && (
-          <box style={{ marginTop: 0 }}>
-            <text
-              content={`↑ Scroll up to see ${scrollOffset} earlier line${scrollOffset > 1 ? 's' : ''}`}
-              fg="gray"
-            />
-          </box>
-        )}
+          return elements;
+        })()}
 
-        {/* INLINE MODE: Bordered boxes inline with messages */}
-        {state.chipDisplayStyle === 'inline' && (state.thinkingSessions.length > 0 || state.currentTool || toolActivity.length > 0 || state.contextChips.length > 0) && (
-          <box style={{ marginTop: 1, flexDirection: 'row', flexWrap: 'wrap', paddingLeft: 1 }}>
-            {/* Thinking sessions - clickable to expand */}
+        {/* Thinking content displayed in feed */}
+        {state.thinkingSessions.length > 0 && (
+          <box style={{ marginBottom: 1, flexDirection: 'column' }}>
             {state.thinkingSessions.map((session) => {
+              const isActive = !session.endTime;
               const isExpanded = state.expandedChipId === `thinking-${session.id}`;
+              const elapsed = ((session.endTime || new Date()).getTime() - session.startTime.getTime()) / 1000;
+              const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
               return (
                 <box
-                  key={session.id}
-                  style={{ flexDirection: 'column', marginRight: 1 }}
+                  key={`feed-thinking-${session.id}`}
+                  style={{ flexDirection: 'column', marginBottom: 0 }}
                 >
-                  <box
-                    border={true}
-                    borderStyle="rounded"
-                    borderColor={activeTheme.colors.thinkingChip}
-                    style={{ paddingLeft: 1, paddingRight: 1, cursor: 'pointer' }}
-                    onMouseUp={() => {
-                      updateState((prev) => ({
-                        expandedChipId: prev.expandedChipId === `thinking-${session.id}` ? null : `thinking-${session.id}`
-                      }));
-                    }}
-                  >
+                  <box style={{ flexDirection: 'row' }}>
                     <text
-                      content={`${isExpanded ? '▼' : '▶'} ${formatThinkingChip(session, true, brailleFrame)}`}
-                      fg={activeTheme.colors.thinkingChip}
+                      content={isActive
+                        ? ` ${spinnerFrames[brailleFrame % spinnerFrames.length]} `
+                        : ' ✓ '
+                      }
+                      fg={isActive ? activeTheme.colors.highlight : activeTheme.colors.success}
+                      bold
+                    />
+                    <text
+                      content={`thought ${elapsed.toFixed(0)}s`}
+                      fg="white"
+                      bold={isActive}
+                      style={{ cursor: 'pointer' }}
+                      onMouseUp={() => {
+                        updateState((prev) => ({
+                          expandedChipId: prev.expandedChipId === `thinking-${session.id}` ? null : `thinking-${session.id}`
+                        }));
+                      }}
+                    />
+                    <text
+                      content={isExpanded ? ' ▼' : ' ▶'}
+                      fg="gray"
+                      style={{ cursor: 'pointer' }}
+                      onMouseUp={() => {
+                        updateState((prev) => ({
+                          expandedChipId: prev.expandedChipId === `thinking-${session.id}` ? null : `thinking-${session.id}`
+                        }));
+                      }}
                     />
                   </box>
                   {/* Expanded thinking content */}
                   {isExpanded && session.content && (
                     <box
-                      border={true}
-                      borderStyle="single"
-                      borderColor="gray"
-                      style={{ paddingLeft: 1, paddingRight: 1, marginTop: 0, maxHeight: 8, maxWidth: 60 }}
+                      style={{ paddingLeft: 2, marginTop: 0 }}
                     >
-                      <text content={session.content.slice(-500)} fg="gray" />
+                      <text content={session.content.slice(-1000)} fg="gray" dim />
                     </box>
                   )}
                 </box>
               );
             })}
+          </box>
+        )}
 
-            {/* Running tool box */}
-            {state.currentTool && (
-              <box
-                border={true}
-                borderStyle="rounded"
-                borderColor={activeTheme.colors.toolChipActive}
-                style={{ paddingLeft: 1, paddingRight: 1, marginRight: 1 }}
-              >
-                <text content={`${brailleFrames[brailleFrame]} ${state.currentTool}`} fg={activeTheme.colors.toolChipActive} />
-              </box>
-            )}
+        {/* Currently running tool indicator */}
+        {state.currentTool && (
+          <box style={{ marginBottom: 1, flexDirection: 'row', paddingLeft: 1 }}>
+            <text
+              content={` ${brailleFrames[brailleFrame]} ${state.currentTool} `}
+              fg="black"
+              bg={activeTheme.colors.toolChipActive}
+              bold
+              style={{ marginRight: 1 }}
+            />
+          </box>
+        )}
 
-            {/* Tool boxes inline - clickable to expand */}
-            {toolActivity.map((activity) => {
-              const isExpanded = state.expandedChipId === `tool-${activity.name}`;
-              const toolMessages = state.messages.filter(
-                (m) => m.role === 'tool' && m.toolName === activity.name
-              );
-
-              return (
-                <box
-                  key={`inline-tool-${activity.name}`}
-                  style={{ flexDirection: 'column', marginRight: 1 }}
-                >
-                  <box
-                    border={true}
-                    borderStyle="rounded"
-                    borderColor={activity.isActive ? activeTheme.colors.toolChipActive : activeTheme.colors.toolChip}
-                    style={{ paddingLeft: 1, paddingRight: 1, cursor: 'pointer' }}
-                    onMouseUp={() => {
-                      updateState((prev) => ({
-                        expandedChipId: prev.expandedChipId === `tool-${activity.name}` ? null : `tool-${activity.name}`
-                      }));
-                    }}
-                  >
-                    <text
-                      content={`${isExpanded ? '▼' : '▶'} ${activity.name.toLowerCase()} x${activity.count}`}
-                      fg={activity.isActive ? activeTheme.colors.toolChipActive : activeTheme.colors.toolChip}
-                      bold={activity.isActive}
-                    />
-                  </box>
-                  {/* Expanded tool details */}
-                  {isExpanded && toolMessages.length > 0 && (
-                    <box
-                      border={true}
-                      borderStyle="single"
-                      borderColor="gray"
-                      style={{ paddingLeft: 1, paddingRight: 1, marginTop: 0, maxHeight: 10 }}
-                    >
-                      {toolMessages.slice(-5).map((msg, idx) => (
-                        <box key={`tool-detail-${idx}`} style={{ flexDirection: 'column' }}>
-                          <text
-                            content={`${idx + 1}. ${msg.toolInput ? JSON.stringify(msg.toolInput).slice(0, 50) : 'No input'}${msg.toolInput && JSON.stringify(msg.toolInput).length > 50 ? '...' : ''}`}
-                            fg="gray"
-                          />
-                          {msg.toolResult && (
-                            <text
-                              content={`   → ${msg.toolResult.slice(0, 40)}${msg.toolResult.length > 40 ? '...' : ''}`}
-                              fg="gray"
-                            />
-                          )}
-                        </box>
-                      ))}
-                    </box>
-                  )}
-                </box>
-              );
-            })}
-
-            {/* Context chips as bordered boxes */}
+        {/* Context chips */}
+        {state.contextChips.length > 0 && (
+          <box style={{ marginBottom: 1, flexDirection: 'row', flexWrap: 'wrap', paddingLeft: 1 }}>
             {state.contextChips.map((chip) => {
               const prefix = chip.isInclude ? '+' : '-';
               return (
-                <box
+                <text
                   key={`inline-context-${chip.id}`}
-                  border={true}
-                  borderStyle="rounded"
-                  borderColor="gray"
-                  style={{ paddingLeft: 1, paddingRight: 1, marginRight: 1 }}
+                  content={` ${prefix}${chip.label} `}
+                  fg="black"
+                  bg="gray"
+                  bold
+                  style={{ marginRight: 1, cursor: 'pointer' }}
                   onMouseUp={() => {
                     // Remove chip when clicked
                     updateState((prev) => ({
@@ -5500,9 +5994,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                     }));
                     setInputSegments((prev) => prev.filter((seg) => seg.type !== 'context' || seg.context.id !== chip.id));
                   }}
-                >
-                  <text content={`${prefix}${chip.label}`} fg="gray" bold />
-                </box>
+                />
               );
             })}
           </box>
@@ -5514,7 +6006,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
             border={true}
             borderStyle="rounded"
             borderColor="red"
-            style={{ marginTop: 0, paddingLeft: 1, paddingRight: 1 }}
+            style={{ marginTop: 1, paddingLeft: 1, paddingRight: 1 }}
           >
             <text content="[!] Press Ctrl+X again to stop" fg="red" bold />
           </box>
@@ -5524,12 +6016,12 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
             border={true}
             borderStyle="rounded"
             borderColor="yellow"
-            style={{ marginTop: 0, paddingLeft: 1, paddingRight: 1 }}
+            style={{ marginTop: 1, paddingLeft: 1, paddingRight: 1 }}
           >
             <text content="[!] Press Ctrl+C again to quit" fg="yellow" bold />
           </box>
         )}
-      </box>
+      </scrollbox>
 
       {/* Download progress indicator */}
       {downloadProgress && (
@@ -5537,7 +6029,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
           border={true}
           borderStyle="rounded"
           borderColor="blue"
-          style={{ marginTop: 0, paddingLeft: 1, paddingRight: 1 }}
+          style={{ marginTop: 1, paddingLeft: 1, paddingRight: 1 }}
         >
           <text
             content={`[⬇] Downloading ${downloadProgress.variant}: ${downloadProgress.percent.toFixed(1)}% (${(downloadProgress.speed / 1024 / 1024).toFixed(1)} MB/s) ETA: ${downloadProgress.eta}s`}
@@ -5546,149 +6038,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
         </box>
       )}
 
-      {/* Chip display - mode-based rendering (BOXES MODE: fixed above input) */}
-      {state.chipDisplayStyle === 'boxes' && (state.thinkingSessions.length > 0 || state.currentTool || toolActivity.length > 0 || state.contextChips.length > 0) && (
-        <box style={{ marginTop: 0, flexDirection: 'row', paddingLeft: 1, flexWrap: 'wrap' }}>
-          {/* Thinking sessions - clickable to expand */}
-          {state.thinkingSessions.map((session) => {
-            const isExpanded = state.expandedChipId === `thinking-${session.id}`;
-            return (
-              <box
-                key={session.id}
-                style={{ flexDirection: 'column', marginRight: 1 }}
-              >
-                <box
-                  border={true}
-                  borderStyle="rounded"
-                  borderColor={activeTheme.colors.thinkingChip}
-                  style={{ paddingLeft: 1, paddingRight: 1, cursor: 'pointer' }}
-                  onMouseUp={() => {
-                    updateState((prev) => ({
-                      expandedChipId: prev.expandedChipId === `thinking-${session.id}` ? null : `thinking-${session.id}`
-                    }));
-                  }}
-                >
-                  <text
-                    content={`${isExpanded ? '▼' : '▶'} ${formatThinkingChip(session, true, brailleFrame)}`}
-                    fg={activeTheme.colors.thinkingChip}
-                  />
-                </box>
-                {/* Expanded thinking content */}
-                {isExpanded && session.content && (
-                  <box
-                    border={true}
-                    borderStyle="single"
-                    borderColor="gray"
-                    style={{ paddingLeft: 1, paddingRight: 1, marginTop: 0, maxHeight: 8, maxWidth: 60 }}
-                  >
-                    <text content={session.content.slice(-500)} fg="gray" />
-                  </box>
-                )}
-              </box>
-            );
-          })}
-
-          {/* Running tool box */}
-          {state.currentTool && (
-            <box
-              border={true}
-              borderStyle="rounded"
-              borderColor={activeTheme.colors.toolChipActive}
-              style={{ paddingLeft: 1, paddingRight: 1, marginRight: 1 }}
-            >
-              <text
-                content={`${brailleFrames[brailleFrame]} ${state.currentTool}`}
-                fg={activeTheme.colors.toolChipActive}
-              />
-            </box>
-          )}
-
-          {/* Tool activity boxes - clickable to expand */}
-          {toolActivity.map((activity) => {
-            const isExpanded = state.expandedChipId === `tool-${activity.name}`;
-            const toolMessages = state.messages.filter(
-              (m) => m.role === 'tool' && m.toolName === activity.name
-            );
-
-            return (
-              <box
-                key={`boxes-tool-${activity.name}`}
-                style={{ flexDirection: 'column', marginRight: 1 }}
-              >
-                <box
-                  border={true}
-                  borderStyle="rounded"
-                  borderColor={activity.isActive ? activeTheme.colors.toolChipActive : activeTheme.colors.toolChip}
-                  style={{ paddingLeft: 1, paddingRight: 1, cursor: 'pointer' }}
-                  onMouseUp={() => {
-                    updateState((prev) => ({
-                      expandedChipId: prev.expandedChipId === `tool-${activity.name}` ? null : `tool-${activity.name}`
-                    }));
-                  }}
-                >
-                  <text
-                    content={`${isExpanded ? '▼' : '▶'} ${activity.name.toLowerCase()} x${activity.count}`}
-                    fg={activity.isActive ? activeTheme.colors.toolChipActive : activeTheme.colors.toolChip}
-                    bold={activity.isActive}
-                  />
-                </box>
-                {/* Expanded tool details */}
-                {isExpanded && toolMessages.length > 0 && (
-                  <box
-                    border={true}
-                    borderStyle="single"
-                    borderColor="gray"
-                    style={{ paddingLeft: 1, paddingRight: 1, marginTop: 0, maxHeight: 10 }}
-                  >
-                    {toolMessages.slice(-5).map((msg, idx) => (
-                      <box key={`box-tool-detail-${idx}`} style={{ flexDirection: 'column' }}>
-                        <text
-                          content={`${idx + 1}. ${msg.toolInput ? JSON.stringify(msg.toolInput).slice(0, 50) : 'No input'}${msg.toolInput && JSON.stringify(msg.toolInput).length > 50 ? '...' : ''}`}
-                          fg="gray"
-                        />
-                        {msg.toolResult && (
-                          <text
-                            content={`   → ${msg.toolResult.slice(0, 40)}${msg.toolResult.length > 40 ? '...' : ''}`}
-                            fg="gray"
-                          />
-                        )}
-                      </box>
-                    ))}
-                  </box>
-                )}
-              </box>
-            );
-          })}
-
-          {/* Context chips - shown as bordered boxes */}
-          {state.contextChips.map((chip) => {
-            const prefix = chip.isInclude ? '+' : '-';
-
-            return (
-              <box
-                key={`context-chip-${chip.id}`}
-                border={true}
-                borderStyle="rounded"
-                borderColor="gray"
-                style={{ paddingLeft: 1, paddingRight: 1, marginRight: 1 }}
-                onMouseUp={() => {
-                  // Remove chip when clicked
-                  updateState((prev) => ({
-                    contextChips: prev.contextChips.filter((c) => c.id !== chip.id)
-                  }));
-                  setInputSegments((prev) => prev.filter((seg) => seg.type !== 'context' || seg.context.id !== chip.id));
-                }}
-              >
-                <text
-                  content={`${prefix}${chip.label}`}
-                  fg="gray"
-                  bold
-                />
-              </box>
-            );
-          })}
-        </box>
-      )}
+      {/* BOXES MODE is now deprecated - tools are shown inline in the message flow */}
 
 
       {/* Completions dropdown */}
@@ -5712,7 +6062,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
 
           return (
             <box
-              style={{ flexDirection: 'column', paddingLeft: 1, paddingRight: 1, marginBottom: 0, maxHeight: 10, flexShrink: 0 }}
+              style={{ flexDirection: 'column', paddingLeft: 1, paddingRight: 1, marginTop: 1, maxHeight: 10, flexShrink: 0 }}
               border={true}
               borderStyle="rounded"
               borderColor="gray"
@@ -5736,32 +6086,52 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
         })()}
 
       {/* Sub-agents section - expands above input when toggled */}
-      {state.subAgentsSectionExpanded && (
-        <CollapsibleSubAgentsSection
+      {state.subAgentsSectionExpanded && state.subAgents.length > 0 && (
+        <TabbedAgentMessageBlock
           agents={state.subAgents}
-          isExpanded={true}
-          expandedAgents={state.expandedAgentIds}
-          onToggleSection={() => {
+          activeAgentId={state.activeAgentTabId}
+          visibleLineCount={state.agentMessagesVisible.get(state.activeAgentTabId || state.subAgents[0]?.id) || 20}
+          onSelectTab={(agentId) => {
             updateState((prev) => ({
-              subAgentsSectionExpanded: !prev.subAgentsSectionExpanded
+              activeAgentTabId: agentId
             }));
           }}
-          onToggleAgent={(agentId) => {
+          onShowMore={() => {
             updateState((prev) => {
-              const newSet = new Set(prev.expandedAgentIds);
-              if (newSet.has(agentId)) {
-                newSet.delete(agentId);
-              } else {
-                newSet.add(agentId);
-              }
-              return { expandedAgentIds: newSet };
+              const activeId = prev.activeAgentTabId || prev.subAgents[0]?.id;
+              const currentLines = prev.agentMessagesVisible.get(activeId) || 20;
+              const newMap = new Map(prev.agentMessagesVisible);
+              newMap.set(activeId, currentLines + 20);
+              return { agentMessagesVisible: newMap };
             });
           }}
         />
       )}
+      {/* Empty state when panel expanded but no agents */}
+      {state.subAgentsSectionExpanded && state.subAgents.length === 0 && (
+        <box
+          style={{ marginBottom: 1, border: 'single', borderColor: 'gray', paddingLeft: 1, paddingRight: 1, paddingTop: 0, paddingBottom: 0, flexShrink: 0 }}
+        >
+          <text content="No agents running" fg="gray" />
+          <text content="Click [-] or press Ctrl+O to close" fg="gray" />
+        </box>
+      )}
 
-      {/* Input bar - 1 line default, grows when chips present */}
-      <box border={true} borderStyle="rounded" borderColor={inputBorderColor} style={{ paddingLeft: 1, flexShrink: 0, height: state.contextChips.length > 0 ? 5 : 3 }}>
+      {/* Mini agent preview - shown when panel collapsed but agents exist */}
+      {!state.subAgentsSectionExpanded && state.subAgents.length > 0 && (
+        <MiniAgentPreview
+          agents={state.subAgents}
+          theme={activeTheme}
+          onExpand={() => {
+            updateState((prev) => ({
+              subAgentsSectionExpanded: true
+            }));
+          }}
+        />
+      )}
+
+      {/* Input bar - grows dynamically based on content and chips */}
+      <box border={true} borderStyle="rounded" borderColor={inputBorderColor} style={{ paddingLeft: 1, flexShrink: 0, height: inputHeight }}>
         {/* Top line: Context chips (only shown when chips exist) */}
         {state.contextChips.length > 0 && (
           <>
@@ -5769,11 +6139,10 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
               {state.contextChips.map((chip, idx) => {
                 const chipBg = chip.isInclude ? 'white' : 'red';
                 const chipFg = chip.isInclude ? 'black' : 'white';
-                const prefix = chip.isInclude ? '+' : '-';
                 return (
                   <React.Fragment key={`ctx-${chip.id}`}>
                     <text
-                      content={`[${prefix}${chip.label}×]`}
+                      content={` ${chip.label} × `}
                       bg={chipBg}
                       fg={chipFg}
                       bold={true}
@@ -5782,10 +6151,6 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                         updateState((prev) => ({
                           contextChips: prev.contextChips.filter((c) => c.id !== chip.id)
                         }));
-                        // Also remove from input segments if present
-                        setInputSegments((prev) => prev.filter(
-                          (s) => s.type !== 'context' || s.context.id !== chip.id
-                        ));
                       }}
                     />
                     {idx < state.contextChips.length - 1 && <text content=" " />}
@@ -5831,6 +6196,15 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                       // For the last text segment, render with cursor in correct position
                       if (isLastText) {
                         const text = segment.text;
+                        // Check if text contains newlines for multi-line rendering
+                        if (text.includes('\n')) {
+                          return (
+                            <React.Fragment key={`text-${idx}`}>
+                              {renderMultilineText(text, 'white', cursorPosition, cursorVisible)}
+                            </React.Fragment>
+                          );
+                        }
+                        // Single-line text with cursor
                         const beforeCursor = text.slice(0, cursorPosition);
                         const afterCursor = text.slice(cursorPosition);
                         return (
@@ -5841,12 +6215,20 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                           </React.Fragment>
                         );
                       }
+                      // Non-last text segments - check for newlines
+                      if (segment.text.includes('\n')) {
+                        return (
+                          <React.Fragment key={`text-${idx}`}>
+                            {renderMultilineText(segment.text, 'white', -1, false)}
+                          </React.Fragment>
+                        );
+                      }
                       return <text key={`text-${idx}`} content={segment.text} fg="white" />;
                     } else if (segment.type === 'chip') {
                       return (
                         <text
                           key={`chip-${segment.chip.id}`}
-                          content={`[${segment.chip.label}×]`}
+                          content={` ${segment.chip.label} × `}
                           bg={activeTheme.colors.highlight}
                           fg="black"
                           bold={true}
@@ -5873,7 +6255,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
       </box>
 
       {/* Status bar */}
-      <box style={{ paddingLeft: 1, paddingRight: 1, marginTop: 0, flexDirection: 'row' }}>
+      <box style={{ paddingLeft: 1, paddingRight: 1, marginTop: 0, flexDirection: 'row', flexShrink: 0 }}>
         {/* KITT Animation - clickable to open theme picker */}
         {isActivityHappening ? (
           <box
@@ -5933,19 +6315,16 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
             }))}
           />
         )}
-        <text content=" |" fg={activeTheme.colors.separator} />
-        {/* Mode selector */}
-        <text content="    " fg={activeTheme.colors.muted} />
+        <text content=" | " fg={activeTheme.colors.separator} />
+        {/* Mode indicator - 4 chars for consistency: CODE/PLAN/TOOL/AGNT */}
         <text
           content={
-            state.thinkingSessions.some(s => !s.endTime) ? '  THINKING  ' :
-            state.currentTool ? '  TOOL USE  ' :
-            state.isResponding ? ' RESPONDING ' :
-            state.agentMode === 'coding' ? '   CODING   ' : '  PLANNING  '  
+            state.currentTool ? 'TOOL' :
+            state.isResponding ? 'AGNT' :
+            state.agentMode === 'coding' ? 'CODE' : 'PLAN'
           }
           fg={
             state.activeStatusPopup === 'mode' ? activeTheme.colors.highlight :
-            state.thinkingSessions.some(s => !s.endTime) ? activeTheme.colors.thinkingChip :
             state.currentTool ? activeTheme.colors.toolChipActive :
             state.isResponding ? activeTheme.colors.success :
             activeTheme.colors.secondary
@@ -6111,7 +6490,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
             height: 18,
             flexDirection: 'column',
             zIndex: 999,
-            backgroundColor: 'black'
+            backgroundColor: activeTheme.colors.background
           }}
           border={true}
           borderStyle="rounded"
@@ -6167,7 +6546,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
             height: models.length + 4,
             flexDirection: 'column',
             zIndex: 1000,
-            backgroundColor: 'black'
+            backgroundColor: activeTheme.colors.background
           }}
           border={true}
           borderStyle="rounded"
@@ -6216,7 +6595,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
             height: providers.length * 2 + 4,
             flexDirection: 'column',
             zIndex: 1000,
-            backgroundColor: 'black'
+            backgroundColor: activeTheme.colors.background
           }}
           border={true}
           borderStyle="rounded"
@@ -6288,7 +6667,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
               height: dialogHeight,
               flexDirection: 'column',
               zIndex: 1001,
-              backgroundColor: 'black'
+              backgroundColor: activeTheme.colors.background
             }}
             border={true}
             borderStyle="rounded"
@@ -6374,7 +6753,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
             height: models.length + 4,
             flexDirection: 'column',
             zIndex: 1002,
-            backgroundColor: 'black'
+            backgroundColor: activeTheme.colors.background
           }}
           border={true}
           borderStyle="rounded"
@@ -6423,7 +6802,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
             height: 6,
             flexDirection: 'column',
             zIndex: 1002,
-            backgroundColor: 'black'
+            backgroundColor: activeTheme.colors.background
           }}
           border={true}
           borderStyle="rounded"
@@ -6472,7 +6851,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
             height: 11,
             flexDirection: 'column',
             zIndex: 1002,
-            backgroundColor: 'black'
+            backgroundColor: activeTheme.colors.background
           }}
           border={true}
           borderStyle="rounded"
@@ -6542,7 +6921,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
             height: 9,
             flexDirection: 'column',
             zIndex: 1002,
-            backgroundColor: 'black'
+            backgroundColor: activeTheme.colors.background
           }}
           border={true}
           borderStyle="rounded"
@@ -6585,7 +6964,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
             height: 12,
             flexDirection: 'column',
             zIndex: 1002,
-            backgroundColor: 'black'
+            backgroundColor: activeTheme.colors.background
           }}
           border={true}
           borderStyle="rounded"
@@ -6639,7 +7018,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
             height: 11,
             flexDirection: 'column',
             zIndex: 1002,
-            backgroundColor: 'black'
+            backgroundColor: activeTheme.colors.background
           }}
           border={true}
           borderStyle="rounded"
@@ -6782,62 +7161,21 @@ async function main(): Promise<void> {
     debugLog(`Found ${activeSessions.length} active session(s) in cwd`);
 
     if (activeSessions.length > 0) {
-      // Show active sessions and prompt for resume
-      console.log('\n📂 Active sessions found:\n');
-      activeSessions.slice(0, 5).forEach((s, i) => {
-        const date = new Date(s.updatedAt).toLocaleDateString();
-        const time = new Date(s.updatedAt).toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit'
-        });
-        console.log(
-          `  ${i + 1}. [${s.sessionId.slice(0, 8)}] ${date} ${time} - ${s.messageCount} msgs`
-        );
-        console.log(`     ${s.preview}`);
-      });
-      console.log('\n  N. Start new session\n');
-
-      // Simple stdin prompt (before TUI takes over)
-      const readline = await import('readline');
-      const rl = readline.createInterface({
-        input: process.stdin,
-        output: process.stdout
-      });
-
-      const answer = await new Promise<string>((resolve) => {
-        rl.question('Resume session (1-5) or N for new: ', (ans) => {
-          debugLog('readline: Closing interface...');
-          rl.close();
-          debugLog(`stdin state after rl.close(): paused=${process.stdin.isPaused()}, destroyed=${process.stdin.destroyed}, readable=${process.stdin.readable}`);
-
-          // Give readline a moment to fully release stdin
-          // Then let the OpenTUI renderer handle stdin setup
-          setImmediate(() => {
-            debugLog(`stdin state after setImmediate: paused=${process.stdin.isPaused()}, destroyed=${process.stdin.destroyed}, readable=${process.stdin.readable}`);
-            resolve(ans.trim().toLowerCase());
-          });
-        });
-      });
-
-      if (answer !== 'n' && answer !== '') {
-        const idx = parseInt(answer) - 1;
-        if (idx >= 0 && idx < activeSessions.length) {
-          const sessionToResume = activeSessions[idx];
-          resumeSession = (await loadSession(sessionToResume.filePath)) || undefined;
-          if (resumeSession) {
-            console.log(`\n↻ Resuming session ${resumeSession.sessionId.slice(0, 8)}...`);
-            debugLog(`Resuming session: ${resumeSession.sessionId}`);
-          }
-        }
-      }
-
-      if (!resumeSession) {
-        console.log('\n✨ Starting new session...');
+      // Auto-resume the last active session (most recently updated)
+      const lastSession = activeSessions[0];
+      resumeSession = (await loadSession(lastSession.filePath)) || undefined;
+      if (resumeSession) {
+        console.log(`\n↻ Resuming session ${resumeSession.sessionId.slice(0, 8)}... (${lastSession.messageCount} messages)`);
+        debugLog(`Auto-resuming last session: ${resumeSession.sessionId}`);
       }
     }
   } catch (err) {
     debugLog(`Error checking active sessions: ${err}`);
     // Continue with new session
+  }
+
+  if (!resumeSession) {
+    console.log('\n✨ Starting new session...');
   }
 
   // Log stdin state before creating the renderer

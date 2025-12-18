@@ -64,7 +64,7 @@ Added a beautiful Ink-based TUI (Terminal User Interface) to Claudelet as the de
 ### First Time Setup
 ```bash
 # Use classic mode for authentication
-cd packages/claudelet
+cd /path/to/claudelet
 bun run dev:classic
 
 # Choose auth method (OAuth or API key)
@@ -150,13 +150,13 @@ Potential additions to TUI mode:
 ## Files Changed
 
 ```
-packages/claudelet/
+claudelet/
 ├── bin/
-│   └── claudelet-tui.tsx       # NEW - Ink interface
-├── package.json                # UPDATED - added deps, scripts
-├── tsconfig.json               # NEW - JSX support
-├── README.md                   # UPDATED - TUI docs
-└── TUI_IMPLEMENTATION.md       # NEW - this file
+│   └── claudelet-tui.tsx       # Ink interface
+├── package.json
+├── tsconfig.json
+├── README.md
+└── docs/guides/TUI_IMPLEMENTATION.md
 ```
 
 ## Design Philosophy

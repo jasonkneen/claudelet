@@ -201,6 +201,7 @@ export class SubAgentPool extends EventEmitter {
     agent.progress = { percent: 0, message: 'Starting...' };
 
     this.emit('agentStarted', agent);
+    agent.events.emit('started', { agentId, taskId: task.id, model: agent.model });
 
     return new Promise((resolve, reject) => {
       // Set up completion handlers
@@ -217,6 +218,8 @@ export class SubAgentPool extends EventEmitter {
 
       const onStopped = () => {
         cleanup();
+        agent.status = 'done';
+        agent.completedAt = new Date();
         resolve(agent.liveOutput);
       };
 
@@ -336,7 +339,8 @@ export class SubAgentPool extends EventEmitter {
       byModel: {
         fast: agents.filter(a => a.model === 'fast').length,
         'smart-sonnet': agents.filter(a => a.model === 'smart-sonnet').length,
-        'smart-opus': agents.filter(a => a.model === 'smart-opus').length
+        'smart-opus': agents.filter(a => a.model === 'smart-opus').length,
+        auto: agents.filter(a => a.model === 'auto').length
       }
     };
   }

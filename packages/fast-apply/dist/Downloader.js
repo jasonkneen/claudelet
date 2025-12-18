@@ -37,6 +37,7 @@ exports.Downloader = void 0;
 const events_1 = require("events");
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
+const os = __importStar(require("os"));
 const https = __importStar(require("https"));
 const http = __importStar(require("http"));
 const config_1 = require("./config");
@@ -118,6 +119,7 @@ class Downloader extends events_1.EventEmitter {
             console.log('[Downloader] Download complete, renaming temp file...');
             // Rename temp file to final path
             await fs.promises.rename(tempPath, modelPath);
+            await this.validateDownloadedFile(modelPath, modelDef);
             console.log('[Downloader] Model saved to:', modelPath);
             this.emit('complete', modelPath);
             return modelPath;
@@ -262,10 +264,41 @@ class Downloader extends events_1.EventEmitter {
      * Check if there's enough disk space
      */
     async checkDiskSpace(requiredBytes) {
-        // On macOS/Linux, we can use statvfs via fs.statfs (Node 18.15+)
-        // For now, we'll skip this check as it requires platform-specific code
-        // The download will fail gracefully if there's not enough space
-        return Promise.resolve();
+        const statfs = fs.promises.statfs;
+        try {
+            if (typeof statfs === 'function') {
+                const stats = await statfs(this.storageDir);
+                const freeBytes = Number(stats.bavail) * Number(stats.bsize);
+                if (freeBytes < requiredBytes) {
+                    throw new Error(`Not enough disk space. Required: ${Math.round(requiredBytes / (1024 * 1024))} MB, available: ${Math.round(freeBytes / (1024 * 1024))} MB`);
+                }
+                return;
+            }
+        }
+        catch (error) {
+            console.warn('[Downloader] statfs check failed, falling back to freemem():', error);
+        }
+        const freeBytes = os.freemem();
+        if (freeBytes < requiredBytes) {
+            throw new Error(`Not enough memory-reported free space. Required: ${Math.round(requiredBytes / (1024 * 1024))} MB, available: ${Math.round(freeBytes / (1024 * 1024))} MB`);
+        }
+    }
+    /**
+     * Validate downloaded file size and delete if it is incomplete.
+     */
+    async validateDownloadedFile(modelPath, modelDef) {
+        const expectedBytes = modelDef.size * 1024 * 1024;
+        const stats = await fs.promises.stat(modelPath);
+        const withinTolerance = stats.size >= expectedBytes * 0.99 && stats.size <= expectedBytes * 1.01;
+        if (!withinTolerance) {
+            try {
+                await fs.promises.unlink(modelPath);
+            }
+            catch {
+                // ignore cleanup errors
+            }
+            throw new Error(`Downloaded file size mismatch for ${modelDef.file}. Expected ~${modelDef.size} MB, got ${Math.round(stats.size / (1024 * 1024))} MB`);
+        }
     }
 }
 exports.Downloader = Downloader;

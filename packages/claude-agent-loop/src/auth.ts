@@ -7,6 +7,7 @@
 
 import { AnthropicOAuthClient, type AuthMode, type OAuthTokens } from '@anthropic-ai/anthropic-oauth'
 import { OAuthCodeValidator } from './oauth-code-validator.js'
+import { parseOAuthCallbackInput } from './oauth-callback.js'
 
 export interface AuthConfig {
   /**
@@ -151,11 +152,14 @@ export class AuthenticationManager {
     state: string,
     createApiKey = false
   ): Promise<OAuthFlowResult> {
+    const parsed = parseOAuthCallbackInput(code)
+    const codeForClient = parsed.state ? `${parsed.code}#${parsed.state}` : parsed.code
+
     // Validate authorization code before token exchange
     // This prevents authorization code injection, replay attacks, and CSRF vulnerabilities
-    this.codeValidator.validateCode(code, state, state)
+    this.codeValidator.validateCode(parsed.code, parsed.state ?? state, state)
 
-    const result = await this.oauthClient.completeLogin(code, verifier, state, createApiKey)
+    const result = await this.oauthClient.completeLogin(codeForClient, verifier, state, createApiKey)
 
     if (createApiKey && result.apiKey) {
       this.setApiKey(result.apiKey)

@@ -11,6 +11,7 @@ export declare class InferenceEngine extends EventEmitter {
     private context;
     private modelPath;
     private loading;
+    private applyMutex;
     /**
      * Check if a model is currently loaded
      */
@@ -31,6 +32,14 @@ export declare class InferenceEngine extends EventEmitter {
      * Run inference to apply code changes
      */
     apply(originalCode: string, updateSnippet: string): Promise<ApplyResult>;
+    /**
+     * Serialize apply calls to avoid exhausting sequences/context.
+     */
+    private withApplyLock;
+    /**
+     * Wrap a promise with a cancellable timeout so late rejections don't fire.
+     */
+    private runWithTimeout;
     /**
      * Dispose all resources
      */

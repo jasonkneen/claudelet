@@ -5,7 +5,7 @@
  * for different projects without interfering with each other.
  */
 
-import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { AiToolsService } from '../bin/claudelet-ai-tools'
 import { join } from 'path'
 import { tmpdir } from 'os'
@@ -35,13 +35,17 @@ describe('AiToolsService Multi-Instance Support', () => {
     writeFileSync(join(projectB, 'package.json'), '{}')
 
     // Get instances for each project
-    serviceA = AiToolsService.getInstance(projectA)
-    serviceB = AiToolsService.getInstance(projectB)
+    serviceA = AiToolsService.create(projectA)
+    serviceB = AiToolsService.create(projectB)
+
+    // Avoid spawning real language servers in unit tests
+    vi.spyOn(serviceA.lspManager, 'touchFile').mockResolvedValue(0 as any)
+    vi.spyOn(serviceB.lspManager, 'touchFile').mockResolvedValue(0 as any)
   })
 
   afterAll(async () => {
-    // Dispose all instances
-    await AiToolsService.disposeAll()
+    await serviceA.dispose()
+    await serviceB.dispose()
 
     // Clean up temp directories
     try {
@@ -57,11 +61,6 @@ describe('AiToolsService Multi-Instance Support', () => {
     expect(serviceA).not.toBe(serviceB)
   })
 
-  it('should return same instance for same project path', () => {
-    const serviceA2 = AiToolsService.getInstance(projectA)
-    expect(serviceA2).toBe(serviceA)
-  })
-
   it('should track correct project paths', () => {
     expect(serviceA.getProjectPath()).toBe(projectA)
     expect(serviceB.getProjectPath()).toBe(projectB)
@@ -71,11 +70,6 @@ describe('AiToolsService Multi-Instance Support', () => {
     expect(serviceA.lspManager).toBeDefined()
     expect(serviceB.lspManager).toBeDefined()
     expect(serviceA.lspManager).not.toBe(serviceB.lspManager)
-
-    // Each manager should have its own instance ID
-    const idA = serviceA.lspManager.getInstanceId()
-    const idB = serviceB.lspManager.getInstanceId()
-    expect(idA).not.toBe(idB)
   })
 
   it('should have isolated vector stores', () => {
@@ -131,25 +125,15 @@ describe('AiToolsService Multi-Instance Support', () => {
     expect(statsB.patchModel).toBeDefined()
   })
 
-  it('should dispose specific instance', async () => {
-    // Create a new project and instance
+  it('should dispose instances independently', async () => {
     const projectC = join(tmpdir(), 'aitools-test-project-c-' + Date.now())
     mkdirSync(projectC, { recursive: true })
     mkdirSync(join(projectC, '.opencode'), { recursive: true })
+    writeFileSync(join(projectC, 'package.json'), '{}')
 
-    const serviceC = AiToolsService.getInstance(projectC)
-    expect(serviceC).toBeDefined()
-
-    // Dispose it
-    await AiToolsService.disposeInstance(projectC)
-
-    // Getting instance again should create a new one
-    const serviceC2 = AiToolsService.getInstance(projectC)
-    expect(serviceC2).toBeDefined()
-    expect(serviceC2).not.toBe(serviceC) // New instance
-
-    // Clean up
-    await AiToolsService.disposeInstance(projectC)
+    const serviceC = AiToolsService.create(projectC)
+    vi.spyOn(serviceC.lspManager, 'touchFile').mockResolvedValue(0 as any)
+    await expect(serviceC.dispose()).resolves.toBeUndefined()
     rmSync(projectC, { recursive: true, force: true })
   })
 
@@ -185,11 +169,11 @@ describe('AiToolsService Diagnostics API', () => {
     mkdirSync(join(projectPath, '.opencode'), { recursive: true })
     writeFileSync(join(projectPath, 'package.json'), '{}')
 
-    service = AiToolsService.getInstance(projectPath)
+    service = AiToolsService.create(projectPath)
   })
 
   afterAll(async () => {
-    await AiToolsService.disposeInstance(projectPath)
+    await service.dispose()
     rmSync(projectPath, { recursive: true, force: true })
   })
 

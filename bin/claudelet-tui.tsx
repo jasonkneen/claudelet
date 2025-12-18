@@ -1400,8 +1400,9 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
           return (
             <Box key={`${msg.timestamp.getTime()}-${msg.role}-${i}`} marginBottom={msg.role === 'assistant' ? 1 : 0}>
               {msg.role === 'user' && (
-                <Text bold color="cyan">
-                  You: <Text color="white">{msg.content}</Text>
+                <Text>
+                  <Text bold color="cyan">{'> '}</Text>
+                  <Text color="white">{msg.content}</Text>
                 </Text>
               )}
               {msg.role === 'assistant' && (

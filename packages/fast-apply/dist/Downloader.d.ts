@@ -41,6 +41,10 @@ export declare class Downloader extends EventEmitter {
      * Check if there's enough disk space
      */
     private checkDiskSpace;
+    /**
+     * Validate downloaded file size and delete if it is incomplete.
+     */
+    private validateDownloadedFile;
 }
 export declare interface Downloader {
     on<K extends keyof DownloaderEvents>(event: K, listener: DownloaderEvents[K]): this;

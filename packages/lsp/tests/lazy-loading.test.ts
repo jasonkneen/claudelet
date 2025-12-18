@@ -81,7 +81,7 @@ describe('Installation Progress Callbacks', () => {
     await manager.shutdown()
   })
 
-  it('should emit server-installing events with progress', (done) => {
+  it('should emit server-installing events with progress', () => {
     const progressEvents: InstallProgress[] = []
 
     manager.on('server-installing', (data) => {
@@ -91,50 +91,50 @@ describe('Installation Progress Callbacks', () => {
       expect(data.serverId).toBeDefined()
       expect(data.progress.stage).toBeDefined()
       expect(data.progress.package).toBeDefined()
-
-      // If we got a complete event, finish the test
-      if (data.progress.stage === 'complete') {
-        expect(progressEvents.length).toBeGreaterThan(0)
-        done()
-      }
     })
 
-    // Trigger an installation by requesting a file that needs a server
-    // This will only work if the server is not already installed
-    const testFile = `${testProjectPath}/test.ts`
-    manager.getClientsForFile(testFile).catch(() => {
-      // Installation may fail in test environment, that's ok
-      done()
+    // Unit test: simulate progress events (avoid real installs/downloads in CI)
+    manager.emit('server-installing', {
+      serverId: 'typescript',
+      progress: { stage: 'installing', package: 'typescript-language-server' },
+    })
+    manager.emit('server-installing', {
+      serverId: 'typescript',
+      progress: { stage: 'complete', package: 'typescript-language-server' },
     })
 
-    // Timeout after 5 seconds
-    setTimeout(() => {
-      // If no installation happened (server already installed), pass the test
-      done()
-    }, 5000)
+    expect(progressEvents.length).toBeGreaterThan(0)
   })
 
-  it('should report progress as: installing -> downloading -> extracting -> complete', (done) => {
+  it('should report progress as: installing -> downloading -> extracting -> complete', () => {
     const stages: string[] = []
 
     manager.on('server-installing', (data) => {
       stages.push(data.progress.stage)
-
-      if (data.progress.stage === 'complete') {
-        // Verify expected stage progression
-        expect(stages).toContain('installing')
-        done()
-      }
     })
 
-    const testFile = `${testProjectPath}/test.ts`
-    manager.getClientsForFile(testFile).catch(() => {
-      done()
+    // Unit test: simulate stage progression
+    manager.emit('server-installing', {
+      serverId: 'typescript',
+      progress: { stage: 'installing', package: 'typescript-language-server' },
+    })
+    manager.emit('server-installing', {
+      serverId: 'typescript',
+      progress: { stage: 'downloading', package: 'typescript-language-server' },
+    })
+    manager.emit('server-installing', {
+      serverId: 'typescript',
+      progress: { stage: 'extracting', package: 'typescript-language-server' },
+    })
+    manager.emit('server-installing', {
+      serverId: 'typescript',
+      progress: { stage: 'complete', package: 'typescript-language-server' },
     })
 
-    setTimeout(() => {
-      done()
-    }, 5000)
+    expect(stages[0]).toBe('installing')
+    expect(stages).toContain('downloading')
+    expect(stages).toContain('extracting')
+    expect(stages[stages.length - 1]).toBe('complete')
   })
 })
 

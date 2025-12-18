@@ -54,33 +54,15 @@ export type {
   AgentSessionEvents,
   AgentSessionHandle,
   AgentSessionOptions,
-  MessageQueueItem,
   ModelPreference
 } from './types.js';
 
-// Export message queue functions
-export {
-  abortGenerator,
-  clearMessageQueue,
-  getMessageQueue,
-  getSessionId,
-  messageGenerator,
-  queueMessage,
-  regenerateSessionId,
-  resetAbortFlag,
-  resetMessageQueueState,
-  setSessionId,
-  shouldAbortGenerator
-} from './message-queue.js';
+// Export message queue (instance-based)
+export { MessageQueue } from './message-queue.js';
+export type { MessageQueueItem } from './message-queue.js';
 
-// Export agent session functions
-export {
-  interruptCurrentResponse,
-  isSessionActive,
-  resetSession,
-  setModel,
-  startAgentSession
-} from './agent-session.js';
+// Export agent session
+export { startAgentSession } from './agent-session.js';
 
 // Export model router
 export {
