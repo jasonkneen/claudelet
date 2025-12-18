@@ -6610,9 +6610,8 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
             />
           </box>
           <box style={{ paddingLeft: 1, marginTop: 1 }}>
-            <text content="Status: " fg={activeTheme.colors.muted} />
             <text
-              content={aiStats.indexer.isIndexing ? 'Indexing...' : 'Ready'}
+              content={aiStats.indexer.isIndexing ? 'Indexing...' : 'Indexed'}
               fg={aiStats.indexer.isIndexing ? activeTheme.colors.warning : activeTheme.colors.success}
               bold
             />
