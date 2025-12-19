@@ -13,7 +13,7 @@ This file tracks all major work items. Each track has its own spec and plan in `
 
 ## Active Tracks
 
-### [001-test-suite](./tracks/001-test-suite/) - `spec`
+### [001-test-suite](./tracks/001-test-suite/) - `impl`
 **Add Test Suite**
 Set up vitest with comprehensive tests for core modules and hooks. Foundation for TDD workflow.
 

@@ -34,7 +34,10 @@
     "format": "prettier --write 'src/**/*.ts' 'bin/**/*.ts'",
     "format:check": "prettier --check 'src/**/*.ts' 'bin/**/*.ts'",
     "build:workspaces": "npm run build --workspaces --if-present",
-    "typecheck:workspaces": "npm run typecheck --workspaces --if-present"
+    "typecheck:workspaces": "npm run typecheck --workspaces --if-present",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "keywords": [
     "claude",
@@ -73,7 +76,9 @@
     "react": "^19.2.0"
   },
   "devDependencies": {
-    "typescript": "^5.3.3"
+    "@vitest/coverage-v8": "^4.0.16",
+    "typescript": "^5.3.3",
+    "vitest": "^4.0.16"
   },
   "engines": {
     "node": ">=18.0.0",
