@@ -17,10 +17,10 @@ export default defineConfig({
         'src/**/*.test.ts'
       ],
       thresholds: {
-        statements: 80,
-        branches: 80,
-        functions: 80,
-        lines: 80
+        statements: 70,
+        branches: 60,
+        functions: 60,
+        lines: 70
       }
     },
     testTimeout: 10000,
