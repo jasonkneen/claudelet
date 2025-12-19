@@ -13,14 +13,14 @@ This file tracks all major work items. Each track has its own spec and plan in `
 
 ## Active Tracks
 
-### [001-test-suite](./tracks/001-test-suite/) - `impl`
-**Add Test Suite**
-Set up vitest with comprehensive tests for core modules and hooks. Foundation for TDD workflow.
+_No active tracks. Run `/conductor-newtrack` to create one._
 
 ---
 
 ## Completed Tracks
 
-_No completed tracks yet._
+### [001-test-suite](./tracks/001-test-suite/) - `done`
+**Add Test Suite**
+Set up vitest with 104 tests for core modules. CI integration via GitHub Actions._
 
 ---
