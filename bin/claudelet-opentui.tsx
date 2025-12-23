@@ -2883,11 +2883,15 @@ const TabbedAgentMessageBlock: React.FC<{
     activeAgent.status === 'error' ? 'red' :
     activeAgent.status === 'waiting' ? 'yellow' : 'gray';
 
+  // Calculate tab bar width for underline
+  const tabBarWidth = agents.reduce((total, agent, idx) => {
+    const tabWidth = agent.id.length + 2; // " agentId "
+    const spacerWidth = idx < agents.length - 1 ? 1 : 0; // " " between tabs
+    return total + tabWidth + spacerWidth;
+  }, 2); // +2 for left/right padding
+
   return (
     <box style={{ marginBottom: 1, flexShrink: 0 }}>
-      {/* Top border line - full width */}
-      <text content={'─'.repeat(120)} fg="gray" />
-
       {/* Tab bar - all agents as clickable tabs */}
       <box style={{ flexDirection: 'row', paddingLeft: 1, paddingRight: 1, paddingBottom: 0, backgroundColor: '#1a1a1a' }}>
         {agents.map((agent, idx) => {
@@ -2908,8 +2912,8 @@ const TabbedAgentMessageBlock: React.FC<{
         })}
       </box>
 
-      {/* Separator line */}
-      <text content={'─'.repeat(120)} fg="gray" />
+      {/* Separator line - matches tab width */}
+      <text content={'─'.repeat(tabBarWidth)} fg="gray" style={{ paddingLeft: 1 }} />
 
       {/* Content area for active agent - fixed height with scrolling */}
       <scrollbox
