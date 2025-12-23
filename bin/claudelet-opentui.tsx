@@ -2713,6 +2713,32 @@ function getAgentCompletions(prefix: string, agents: SubAgent[]): string[] {
 }
 
 /**
+ * Extract @agent-id references from message content
+ */
+function extractAgentReferences(content: string, agents: SubAgent[]): { agentIds: string[]; cleanContent: string } {
+  const agentIds: string[] = [];
+  let cleanContent = content;
+
+  // Find all @agent-id patterns
+  const agentPattern = /@([a-z]+-\d+)/gi;
+  const matches = content.matchAll(agentPattern);
+
+  for (const match of matches) {
+    const refText = match[0]; // @haiku-1
+    const agentId = match[1]; // haiku-1
+
+    // Check if this agent actually exists
+    if (agents.some((a) => a.id === agentId)) {
+      agentIds.push(agentId);
+      // Remove agent reference from content (it's a routing directive, not content)
+      cleanContent = cleanContent.replace(refText, '').trim();
+    }
+  }
+
+  return { agentIds, cleanContent };
+}
+
+/**
  * Find completions for current input segments
  */
 async function getCompletionsWithAgents(segments: InputSegment[], agents: SubAgent[]): Promise<string[]> {
@@ -4977,6 +5003,38 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
           contextPreamble += '</context_chips>\n\n';
 
           messageContent = contextPreamble + messageContent;
+        }
+
+        // Check for @agent-id routing (e.g., @haiku-1 "your message")
+        const { agentIds, cleanContent } = extractAgentReferences(messageContent, state.subAgents);
+        if (agentIds.length > 0) {
+          // Route to specific agent(s)
+          const orchestrator = orchestratorRef.current;
+          if (!orchestrator) {
+            throw new Error('Orchestrator not initialized - agents not available');
+          }
+
+          updateState((prev) => ({
+            messages: [
+              ...prev.messages,
+              { role: 'system', content: `[→] Routing to ${agentIds.join(', ')}`, timestamp: new Date() }
+            ],
+            subAgentsSectionExpanded: true
+          }));
+
+          // Send to each referenced agent
+          for (const agentId of agentIds) {
+            const agent = state.subAgents.find((a) => a.id === agentId);
+            if (agent?.sessionHandle) {
+              await agent.sessionHandle.sendMessage({
+                role: 'user',
+                content: cleanContent
+              });
+            }
+          }
+
+          debugLog('Message sent to agents:', agentIds);
+          return; // Don't send to main session
         }
 
         // Check for model override (@opus, @sonnet, @haiku prefix)
