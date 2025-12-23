@@ -19,6 +19,17 @@ export interface StoredMessage {
 
 export type SessionStatus = 'active' | 'completed';
 
+export interface StoredSubAgent {
+  id: string;
+  model: string;
+  status: string;
+  currentTask?: string;
+  liveOutput?: string;
+  spawnedAt: string;
+  completedAt?: string;
+  error?: string;
+}
+
 export interface SessionData {
   sessionId: string;
   createdAt: string;
@@ -29,6 +40,7 @@ export interface SessionData {
   inputTokens: number;
   outputTokens: number;
   status: SessionStatus;
+  subAgents?: StoredSubAgent[]; // Orchestrated sub-agent conversations
 }
 
 export interface SessionSummary {

@@ -3379,8 +3379,19 @@ const ChatApp: React.FC<{
     contextChips: [], // Active context chips (transient, not persisted)
     // Orchestration state
     orchestration: undefined,
-    subAgents: [],
-    subAgentsSectionExpanded: false,
+    subAgents: resumeSession?.subAgents?.map((stored) => ({
+      id: stored.id,
+      model: stored.model as ModelPreference,
+      status: stored.status as SubAgentStatus,
+      currentTask: stored.currentTask,
+      liveOutput: stored.liveOutput,
+      spawnedAt: new Date(stored.spawnedAt),
+      completedAt: stored.completedAt ? new Date(stored.completedAt) : undefined,
+      error: stored.error,
+      events: new EventEmitter() // Create new emitter for display
+    })) || [],
+    subAgentsSectionExpanded: (resumeSession?.subAgents?.length || 0) > 0, // Auto-expand if agents exist
+
     expandedAgentIds: new Set(),
     expandedChipId: null,
     // Theme state
@@ -3439,13 +3450,25 @@ const ChatApp: React.FC<{
     sessionDataRef.current.outputTokens = state.outputTokens;
     sessionDataRef.current.model = state.currentModel;
 
+    // Save sub-agent conversations
+    sessionDataRef.current.subAgents = state.subAgents.map((agent) => ({
+      id: agent.id,
+      model: agent.model,
+      status: agent.status,
+      currentTask: agent.currentTask,
+      liveOutput: agent.liveOutput,
+      spawnedAt: agent.spawnedAt.toISOString(),
+      completedAt: agent.completedAt?.toISOString(),
+      error: agent.error
+    }));
+
     try {
       await saveSession(sessionDataRef.current);
       debugLog(`Session auto-saved: ${sessionDataRef.current.sessionId}`);
     } catch (err) {
       debugLog(`Failed to auto-save session: ${err}`);
     }
-  }, [state.messages, state.inputTokens, state.outputTokens, state.currentModel]);
+  }, [state.messages, state.inputTokens, state.outputTokens, state.currentModel, state.subAgents]);
 
   // Add download progress state
   const [downloadProgress, setDownloadProgress] = useState<{
