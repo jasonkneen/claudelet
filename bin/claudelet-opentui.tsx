@@ -2384,6 +2384,8 @@ interface AppState {
   activeAgentTabId: string | null; // Which agent tab is active in the tabbed view
   // Session switching state
   pendingSessionSwitch?: { availableSessions: SessionSummary[]; prompted: boolean };
+  // Agent panel resize state
+  agentPanelHeight: number; // Height in terminal rows
 }
 
 /**
@@ -2861,9 +2863,10 @@ const TabbedAgentMessageBlock: React.FC<{
   agents: SubAgent[];
   activeAgentId: string | null;
   visibleLineCount: number;
+  maxHeight?: number;
   onSelectTab: (agentId: string) => void;
   onShowMore: () => void;
-}> = ({ agents, activeAgentId, visibleLineCount, onSelectTab, onShowMore }) => {
+}> = ({ agents, activeAgentId, visibleLineCount, maxHeight = 30, onSelectTab, onShowMore }) => {
   // Set first agent as default if none selected
   const effectiveActiveId = activeAgentId || agents[0]?.id || null;
   const activeAgent = agents.find((a) => a.id === effectiveActiveId);
@@ -2915,11 +2918,11 @@ const TabbedAgentMessageBlock: React.FC<{
       {/* Separator line - matches tab width */}
       <text content={'─'.repeat(tabBarWidth)} fg="gray" style={{ paddingLeft: 1 }} />
 
-      {/* Content area for active agent - fixed height with scrolling */}
+      {/* Content area for active agent - resizable height with scrolling */}
       <scrollbox
         scrollX={false}
         style={{
-          maxHeight: 30,
+          maxHeight: maxHeight,
           flexShrink: 0
         }}
         options={{
@@ -3344,6 +3347,8 @@ const ChatApp: React.FC<{
     agentMessagesVisible: new Map(),
     expandedAgentMessageIds: new Set(),
     activeAgentTabId: null,
+    // Agent panel resize state
+    agentPanelHeight: 15, // Default 15 rows for agent panel
     // Session switching state
     pendingSessionSwitch: undefined
   });
@@ -5413,6 +5418,17 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
       return;
     }
 
+    // Ctrl+Shift+R to resize agent panel (cycle through sizes)
+    if (key.ctrl && key.shift && key.name === 'r') {
+      const sizes = [10, 15, 20, 25, 30];
+      updateState((prev) => {
+        const currentIndex = sizes.indexOf(prev.agentPanelHeight);
+        const nextIndex = (currentIndex + 1) % sizes.length;
+        return { agentPanelHeight: sizes[nextIndex] };
+      });
+      return;
+    }
+
     // Tab to complete
     if (key.name === 'tab' && showCompletions && completions.length > 0) {
       const completion = completions[selectedCompletion];
@@ -6118,25 +6134,50 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
 
       {/* Sub-agents section - expands above input when toggled */}
       {state.subAgentsSectionExpanded && state.subAgents.length > 0 && (
-        <TabbedAgentMessageBlock
-          agents={state.subAgents}
-          activeAgentId={state.activeAgentTabId}
-          visibleLineCount={state.agentMessagesVisible.get(state.activeAgentTabId || state.subAgents[0]?.id) || 20}
-          onSelectTab={(agentId) => {
-            updateState((prev) => ({
-              activeAgentTabId: agentId
-            }));
-          }}
-          onShowMore={() => {
-            updateState((prev) => {
-              const activeId = prev.activeAgentTabId || prev.subAgents[0]?.id;
-              const currentLines = prev.agentMessagesVisible.get(activeId) || 20;
-              const newMap = new Map(prev.agentMessagesVisible);
-              newMap.set(activeId, currentLines + 20);
-              return { agentMessagesVisible: newMap };
-            });
-          }}
-        />
+        <>
+          {/* Resize handle - click to cycle through sizes */}
+          <box
+            style={{
+              height: 1,
+              backgroundColor: 'gray',
+              cursor: 'ns-resize',
+              flexShrink: 0
+            }}
+            onMouseUp={() => {
+              // Cycle through preset sizes: 10, 15, 20, 25, 30
+              const sizes = [10, 15, 20, 25, 30];
+              const currentIndex = sizes.indexOf(state.agentPanelHeight);
+              const nextIndex = (currentIndex + 1) % sizes.length;
+              updateState({ agentPanelHeight: sizes[nextIndex] });
+            }}
+          >
+            <text
+              content={`${'═'.repeat(3)} [${state.agentPanelHeight} rows - click to resize] ${'═'.repeat(Math.max(0, Math.min(terminalSize.columns, 120) - 30))}`}
+              fg="gray"
+            />
+          </box>
+
+          <TabbedAgentMessageBlock
+            agents={state.subAgents}
+            activeAgentId={state.activeAgentTabId}
+            visibleLineCount={state.agentMessagesVisible.get(state.activeAgentTabId || state.subAgents[0]?.id) || 20}
+            maxHeight={state.agentPanelHeight}
+            onSelectTab={(agentId) => {
+              updateState((prev) => ({
+                activeAgentTabId: agentId
+              }));
+            }}
+            onShowMore={() => {
+              updateState((prev) => {
+                const activeId = prev.activeAgentTabId || prev.subAgents[0]?.id;
+                const currentLines = prev.agentMessagesVisible.get(activeId) || 20;
+                const newMap = new Map(prev.agentMessagesVisible);
+                newMap.set(activeId, currentLines + 20);
+                return { agentMessagesVisible: newMap };
+              });
+            }}
+          />
+        </>
       )}
       {/* Empty state when panel expanded but no agents */}
       {state.subAgentsSectionExpanded && state.subAgents.length === 0 && (
