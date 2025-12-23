@@ -4961,8 +4961,35 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
           messageContent = messageWithoutModelPrefix;
         }
 
-        const shouldOrchestrate = !modelOverride && state.currentModel === 'auto';
-        if (shouldOrchestrate) {
+        // 🚀 EPIC SHORT-CIRCUIT: Skip orchestration for trivial/conversational messages
+        // Detect simple greetings, acknowledgments, and short messages that don't need multi-agent orchestration
+        const trimmedContent = messageContent.trim();
+        const isTrivialMessage =
+          trimmedContent.length < 50 && // Short message
+          /^(hi|hello|hey|thanks?|thank you|ok|okay|yes|no|sure|great|cool|bye|goodbye)\b/i.test(trimmedContent) && // Conversational
+          segments.filter(s => s.type === 'chip').length === 0; // No file references
+
+        const shouldOrchestrate = !modelOverride && state.currentModel === 'auto' && !isTrivialMessage;
+
+        // If trivial message in auto mode, use fast model directly
+        if (!modelOverride && state.currentModel === 'auto' && isTrivialMessage) {
+          debugLog('Trivial message detected, bypassing orchestration and using Haiku directly');
+          updateState((prev) => ({
+            messages: [
+              ...prev.messages,
+              { role: 'system', content: '[⚡] Quick reply mode (Haiku)', timestamp: new Date() }
+            ]
+          }));
+
+          if (!session) {
+            throw new Error('No session available');
+          }
+
+          // Temporarily switch to fast model for this message
+          await session.setModel('fast');
+          await session.sendMessage({ role: 'user', content: messageContent });
+          // Model will be restored by response handler if needed
+        } else if (shouldOrchestrate) {
           const orchestrator = orchestratorRef.current;
           if (!orchestrator) {
             throw new Error('Orchestrator not initialized');
