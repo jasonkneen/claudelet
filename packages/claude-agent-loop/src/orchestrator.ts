@@ -470,11 +470,15 @@ Format your response as JSON:
           this.eventCoordinator.subscribe(agent.id, agent);
 
           try {
-            const output = await this.subAgentPool.execute(agent.id, {
+            // Build task with context from parent conversation
+            const taskWithContext: UserTask = {
               id: planned.taskId,
               content: planned.description,
-              priority: context.initialTask.priority
-            });
+              priority: context.initialTask.priority,
+              context: context.initialTask.context // Pass through conversation history & files
+            };
+
+            const output = await this.subAgentPool.execute(agent.id, taskWithContext);
             const result: OrchestrationResult = {
               taskId: planned.taskId,
               agentId: agent.id,

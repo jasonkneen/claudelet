@@ -233,10 +233,46 @@ export class SubAgentPool extends EventEmitter {
       agent.events.once('error', onError);
       agent.events.once('stopped', onStopped);
 
-      // Send the message
+      // Build message with conversation context
+      let messageContent = task.content;
+
+      if (task.context) {
+        const contextParts: string[] = [];
+
+        // Add conversation history
+        if (task.context.previousMessages && task.context.previousMessages.length > 0) {
+          contextParts.push('<conversation_history>');
+          contextParts.push('Recent conversation context:');
+          task.context.previousMessages.forEach((msg) => {
+            contextParts.push(`[${msg.role}]: ${msg.content}`);
+          });
+          contextParts.push('</conversation_history>\n');
+        }
+
+        // Add file references
+        if (task.context.files && task.context.files.length > 0) {
+          contextParts.push('<referenced_files>');
+          contextParts.push(`Files in context: ${task.context.files.join(', ')}`);
+          contextParts.push('</referenced_files>\n');
+        }
+
+        // Add constraints
+        if (task.context.constraints && task.context.constraints.length > 0) {
+          contextParts.push('<constraints>');
+          task.context.constraints.forEach((c) => contextParts.push(`- ${c}`));
+          contextParts.push('</constraints>\n');
+        }
+
+        // Prepend context to task content
+        if (contextParts.length > 0) {
+          messageContent = contextParts.join('\n') + '\n' + task.content;
+        }
+      }
+
+      // Send the message with context
       agent.sessionHandle!.sendMessage({
         role: 'user',
-        content: task.content
+        content: messageContent
       }).catch(reject);
     });
   }
