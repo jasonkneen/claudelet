@@ -2386,6 +2386,9 @@ interface AppState {
   pendingSessionSwitch?: { availableSessions: SessionSummary[]; prompted: boolean };
   // Agent panel resize state
   agentPanelHeight: number; // Height in terminal rows
+  isDraggingResize: boolean; // Currently dragging resize handle
+  dragStartY: number | null; // Y position where drag started
+  dragStartHeight: number | null; // Panel height when drag started
 }
 
 /**
@@ -2697,10 +2700,22 @@ async function getFileCompletions(prefix: string): Promise<string[]> {
   }
 }
 
+
+/**
+ * Get completions for @ agent references
+ */
+function getAgentCompletions(prefix: string, agents: SubAgent[]): string[] {
+  const search = prefix.slice(1).toLowerCase(); // Remove @ and lowercase
+
+  return agents
+    .filter((agent) => agent.id.toLowerCase().includes(search))
+    .map((agent) => `@${agent.id}`);
+}
+
 /**
  * Find completions for current input segments
  */
-async function getCompletions(segments: InputSegment[]): Promise<string[]> {
+async function getCompletionsWithAgents(segments: InputSegment[], agents: SubAgent[]): Promise<string[]> {
   // Get the last text segment
   const lastSegment = segments[segments.length - 1];
   if (!lastSegment || lastSegment.type !== 'text') {
@@ -2714,13 +2729,19 @@ async function getCompletions(segments: InputSegment[]): Promise<string[]> {
     return getCommandCompletions(input);
   }
 
-  // Check if we're completing a file reference
+  // Check if we're completing a file reference or agent reference
   if (input.includes('@')) {
     const lastAtIndex = input.lastIndexOf('@');
     // Check if this @ is after a space (new token) or at start
     if (lastAtIndex === 0 || input[lastAtIndex - 1] === ' ') {
       const afterAt = input.slice(lastAtIndex);
-      return await getFileCompletions(afterAt);
+      const fileCompletions = await getFileCompletions(afterAt);
+
+      // Add active agents to completion list at the TOP
+      const agentCompletions = getAgentCompletions(afterAt, agents);
+
+      // Agents first, then files
+      return [...agentCompletions, ...fileCompletions];
     }
   }
 
@@ -3349,6 +3370,9 @@ const ChatApp: React.FC<{
     activeAgentTabId: null,
     // Agent panel resize state
     agentPanelHeight: 15, // Default 15 rows for agent panel
+    isDraggingResize: false,
+    dragStartY: null,
+    dragStartHeight: null,
     // Session switching state
     pendingSessionSwitch: undefined
   });
@@ -3663,7 +3687,7 @@ const ChatApp: React.FC<{
     if (inputSegments.length > 0) {
       // Debounce: wait 200ms after user stops typing before calculating completions
       completionsDebounceRef.current = setTimeout(async () => {
-        const comps = await getCompletions(inputSegments);
+        const comps = await getCompletionsWithAgents(inputSegments, state.subAgents);
         setCompletions(comps);
         setShowCompletions(comps.length > 0);
         setSelectedCompletion(0);
@@ -3677,7 +3701,7 @@ const ChatApp: React.FC<{
         clearTimeout(completionsDebounceRef.current);
       }
     };
-  }, [inputSegments]);
+  }, [inputSegments, state.subAgents]);
 
   // Initialize session
   // Set SKIP_SESSION=1 to bypass session for input delay debugging
@@ -6135,25 +6159,55 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
       {/* Sub-agents section - expands above input when toggled */}
       {state.subAgentsSectionExpanded && state.subAgents.length > 0 && (
         <>
-          {/* Resize handle - click to cycle through sizes */}
+          {/* Resize handle - drag up/down to resize */}
           <box
             style={{
               height: 1,
-              backgroundColor: 'gray',
+              backgroundColor: state.isDraggingResize ? 'cyan' : 'gray',
               cursor: 'ns-resize',
               flexShrink: 0
             }}
-            onMouseUp={() => {
-              // Cycle through preset sizes: 10, 15, 20, 25, 30
-              const sizes = [10, 15, 20, 25, 30];
-              const currentIndex = sizes.indexOf(state.agentPanelHeight);
-              const nextIndex = (currentIndex + 1) % sizes.length;
-              updateState({ agentPanelHeight: sizes[nextIndex] });
+            onMouseDown={(event) => {
+              if (event.shift) return; // Allow terminal selection on Shift+drag
+              updateState({
+                isDraggingResize: true,
+                dragStartY: event.y,
+                dragStartHeight: state.agentPanelHeight
+              });
+            }}
+            onMouseMove={(event) => {
+              if (!state.isDraggingResize || !state.dragStartY || !state.dragStartHeight) return;
+              if (event.shift) return; // Allow terminal selection on Shift+drag
+
+              // Calculate height change from mouse movement
+              const deltaY = state.dragStartY - event.y; // Inverted: drag up = positive = taller
+              const newHeight = Math.max(5, Math.min(40, state.dragStartHeight + deltaY));
+
+              updateState({ agentPanelHeight: newHeight });
+            }}
+            onMouseUp={(event) => {
+              if (state.isDraggingResize) {
+                updateState({
+                  isDraggingResize: false,
+                  dragStartY: null,
+                  dragStartHeight: null
+                });
+              }
+
+              // Show "Copied" feedback if Shift was held
+              if (event.shift) {
+                updateState((prev) => ({
+                  messages: [
+                    ...prev.messages,
+                    { role: 'system', content: '[✓] Copied', timestamp: new Date() }
+                  ]
+                }));
+              }
             }}
           >
             <text
-              content={`${'═'.repeat(3)} [${state.agentPanelHeight} rows - click to resize] ${'═'.repeat(Math.max(0, Math.min(terminalSize.columns, 120) - 30))}`}
-              fg="gray"
+              content={`${'═'.repeat(3)} [${state.agentPanelHeight} rows${state.isDraggingResize ? ' - dragging...' : ' - drag to resize'}] ${'═'.repeat(Math.max(0, Math.min(terminalSize.columns, 120) - 35))}`}
+              fg={state.isDraggingResize ? 'cyan' : 'gray'}
             />
           </box>
 
