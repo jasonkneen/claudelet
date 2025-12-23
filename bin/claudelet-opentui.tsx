@@ -5840,6 +5840,40 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
     };
   }, [renderer]);
 
+  // Global mouse handler for drag resize
+  useEffect(() => {
+    if (!renderer.mouseInput) return;
+
+    const handleMouseMove = (event: any) => {
+      if (!state.isDraggingResize || !state.dragStartY || !state.dragStartHeight) return;
+      if (event.shift) return; // Allow terminal selection on Shift+drag
+
+      // Calculate height change from mouse movement
+      const deltaY = state.dragStartY - event.y; // Inverted: drag up = positive = taller
+      const newHeight = Math.max(5, Math.min(40, state.dragStartHeight + deltaY));
+
+      updateState({ agentPanelHeight: newHeight });
+    };
+
+    const handleMouseUp = (event: any) => {
+      if (state.isDraggingResize) {
+        updateState({
+          isDraggingResize: false,
+          dragStartY: null,
+          dragStartHeight: null
+        });
+      }
+    };
+
+    renderer.mouseInput.on('mousemove', handleMouseMove);
+    renderer.mouseInput.on('mouseup', handleMouseUp);
+
+    return () => {
+      renderer.mouseInput.off('mousemove', handleMouseMove);
+      renderer.mouseInput.off('mouseup', handleMouseUp);
+    };
+  }, [renderer, state.isDraggingResize, state.dragStartY, state.dragStartHeight]);
+
   // Terminal size state
   const [terminalSize, setTerminalSize] = useState({
     rows: process.stdout.rows || 24,
@@ -6241,7 +6275,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
       {/* Sub-agents section - expands above input when toggled */}
       {state.subAgentsSectionExpanded && state.subAgents.length > 0 && (
         <>
-          {/* Resize handle - drag up/down to resize */}
+          {/* Resize handle - drag up/down to resize (global handlers track movement) */}
           <box
             style={{
               height: 1,
@@ -6256,35 +6290,6 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                 dragStartY: event.y,
                 dragStartHeight: state.agentPanelHeight
               });
-            }}
-            onMouseMove={(event) => {
-              if (!state.isDraggingResize || !state.dragStartY || !state.dragStartHeight) return;
-              if (event.shift) return; // Allow terminal selection on Shift+drag
-
-              // Calculate height change from mouse movement
-              const deltaY = state.dragStartY - event.y; // Inverted: drag up = positive = taller
-              const newHeight = Math.max(5, Math.min(40, state.dragStartHeight + deltaY));
-
-              updateState({ agentPanelHeight: newHeight });
-            }}
-            onMouseUp={(event) => {
-              if (state.isDraggingResize) {
-                updateState({
-                  isDraggingResize: false,
-                  dragStartY: null,
-                  dragStartHeight: null
-                });
-              }
-
-              // Show "Copied" feedback if Shift was held
-              if (event.shift) {
-                updateState((prev) => ({
-                  messages: [
-                    ...prev.messages,
-                    { role: 'system', content: '[✓] Copied', timestamp: new Date() }
-                  ]
-                }));
-              }
             }}
           >
             <text
