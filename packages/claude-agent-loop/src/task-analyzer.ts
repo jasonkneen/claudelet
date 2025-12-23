@@ -50,6 +50,8 @@ export interface TaskContext {
  * Patterns that indicate Haiku is appropriate (fast/simple tasks)
  */
 const HAIKU_PATTERNS = [
+  /\b(hi|hello|hey|greetings?|thanks?|thank\s*you|bye|goodbye)\b/i, // 🚀 Conversational/greetings
+  /\b(ok|okay|yes|no|sure|cool|great|awesome|nice)\b/i, // 🚀 Acknowledgments
   /\b(search|find|grep|look\s*for)\b/i,
   /\b(read|cat|show|display|print)\b/i,
   /\b(list|ls|dir)\b/i,
@@ -135,7 +137,7 @@ export function analyzeTask(content: string, context?: TaskContext): TaskAnalysi
   const lowerContent = content.toLowerCase();
 
   // Calculate complexity score
-  let complexity = 3; // Base complexity
+  let complexity = 1; // 🚀 Base complexity reduced from 3 to 1 - start lower, scale up as needed
 
   // Add complexity from patterns
   for (const { pattern, score } of COMPLEXITY_PATTERNS) {
