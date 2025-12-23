@@ -15,6 +15,7 @@
  *   claudelet-opentui (if installed globally)
  */
 import { execSync } from 'child_process';
+import { EventEmitter } from 'events';
 import * as fs from 'fs';
 import * as fsp from 'fs/promises';
 import * as os from 'os';
