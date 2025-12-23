@@ -366,6 +366,18 @@ Format your response as JSON:
     const done = (async () => {
       const context = await this.waitForContext(contextId, opts?.timeoutMs ?? 10 * 60_000);
       if (context.status === 'canceled') return 'Canceled.';
+
+      // 🚀 EPIC OPTIMIZATION: Skip summarizer for simple single-agent tasks
+      // Only use summarizer when:
+      // - Multiple sub-tasks that need aggregation
+      // - OR complex single task (complexity >= 6) that needs cleanup
+      const needsSummarizer = context.taskIds.length > 1 || (context.analysis?.complexity ?? 0) >= 6;
+
+      if (!needsSummarizer) {
+        // Simple task - return direct output, no need for expensive summarization agent
+        return this.fallbackAggregate(context);
+      }
+
       return await this.summarizeContext(contextId, context).catch(() => this.fallbackAggregate(context));
     })();
 
