@@ -10,6 +10,7 @@
 
 import { EventEmitter } from 'events';
 import { startAgentSession } from './agent-session.js';
+import { generateAgentName } from './agent-names.js';
 import type { ModelPreference, AgentSessionOptions, AgentSessionEvents, AgentSessionHandle } from './types.js';
 import type { UserTask } from './orchestrator.js';
 
@@ -72,12 +73,10 @@ export class SubAgentPool extends EventEmitter {
   }
 
   /**
-   * Generate a unique agent ID
+   * Generate a unique agent ID using adjective-city pattern
    */
-  private generateAgentId(model: ModelPreference): string {
-    const prefix = model === 'fast' ? 'haiku' :
-                   model === 'smart-sonnet' ? 'sonnet' : 'opus';
-    return `${prefix}-${++this.agentCounter}`;
+  private generateAgentId(_model: ModelPreference): string {
+    return generateAgentName();
   }
 
   /**

@@ -44,35 +44,27 @@ export function renderMultilineText(
     const lineStart = charCount;
     const lineEnd = charCount + line.length;
 
-    // Check if cursor is on this line
     const cursorOnLine = cursorPosOverall >= lineStart && cursorPosOverall <= lineEnd;
     const cursorOffsetInLine = cursorOnLine ? cursorPosOverall - lineStart : -1;
 
-    // Add left bar for all lines
-    const leftBar = '█ ';
-
     if (cursorOnLine) {
-      // Render cursor on this line
       const beforeCursor = line.slice(0, cursorOffsetInLine);
       const afterCursor = line.slice(cursorOffsetInLine);
+      // Wrap in row box to keep text + cursor on same line
       elements.push(
-        <React.Fragment key={`line-${lineIdx}`}>
-          {leftBar && <text content={leftBar} fg={fgColor} />}
-          <text content={beforeCursor} fg={fgColor} />
+        <box key={`line-${lineIdx}`} style={{ flexDirection: 'row' }}>
+          <text content={beforeCursor || ''} fg={fgColor} />
           <text content={cursorVisible ? '█' : ' '} fg="gray" />
-          <text content={afterCursor} fg={fgColor} />
-          {lineIdx < lines.length - 1 && <text content="" />}
-        </React.Fragment>
+          <text content={afterCursor || ''} fg={fgColor} />
+        </box>
       );
     } else {
-      // Regular line - prepend left bar for wrapped lines
-      const lineContent = leftBar + line;
       elements.push(
-        <text key={`line-${lineIdx}`} content={lineContent} fg={fgColor} />
+        <text key={`line-${lineIdx}`} content={line || ' '} fg={fgColor} />
       );
     }
 
-    charCount += line.length + 1; // +1 for newline
+    charCount += line.length + 1;
   });
 
   return elements;

@@ -50,10 +50,26 @@ export function extractToolActivity(messages: Message[], greyOutFinishedTools: b
     .sort((a, b) => a.order - b.order);
 }
 
-/**
- * Format thinking session into chip text with elapsed time
- * Returns: "⠙ thinking" for active, "🧠 8s" for completed
- */
+export interface TodoItem {
+  id: string;
+  content: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+  priority: 'high' | 'medium' | 'low';
+}
+
+export function extractTodos(messages: Message[]): TodoItem[] {
+  const todoMessages = messages.filter(
+    (m) => m.role === 'tool' && m.toolName === 'todowrite' && m.toolInput?.todos
+  );
+  
+  if (todoMessages.length === 0) return [];
+  
+  const lastTodoMessage = todoMessages[todoMessages.length - 1];
+  const todos = lastTodoMessage.toolInput?.todos as TodoItem[] | undefined;
+  
+  return todos || [];
+}
+
 export function formatThinkingChip(session: ThinkingSession, animate: boolean, animFrame: number): string {
   const brailleFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
   const now = new Date();

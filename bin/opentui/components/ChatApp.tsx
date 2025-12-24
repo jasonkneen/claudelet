@@ -45,7 +45,7 @@ import { sanitizeText } from '../../../src/env-sanitizer.js';
 import { AiToolsService } from '../../claudelet-ai-tools.js';
 import { debugLog, estimateTokenCount, extractAgentReferences, getAgentCompletions, getCommandCompletions, getPrintableCharFromKeyEvent, renderMultilineText, segmentsToDisplayString } from '../utils/index.js';
 import { DEFAULT_THEMES, getInitialTheme, saveThemeName } from '../themes/index.js';
-import { extractToolActivity, formatThinkingChip, generateStartupBanner, LOGO } from '../rendering/index.js';
+import { extractToolActivity, extractTodos, formatThinkingChip, generateStartupBanner, LOGO } from '../rendering/index.js';
 import type { AppState, ContextChip, FileChip, InputSegment, Message } from '../types/index.js';
 import { AgentMessageBlock } from './AgentMessageBlock.tsx';
 import { CollapsibleSubAgentsSection } from './CollapsibleSubAgentsSection.tsx';
@@ -53,6 +53,7 @@ import { MiniAgentPreview } from './MiniAgentPreview.tsx';
 import { SubAgentTaskBox } from './SubAgentTaskBox.tsx';
 import { TabbedAgentMessageBlock } from './TabbedAgentMessageBlock.tsx';
 import { ToolActivityBoxes } from './ToolActivityBoxes.tsx';
+import { formatToolCall, type DiffLine } from '../rendering/tool-formatting.js';
 
 // Constants from main file
 const MAX_THINKING_TOKENS = 16_000;
@@ -357,7 +358,11 @@ export const ChatApp: React.FC<{
       error: stored.error,
       events: new EventEmitter() // Create new emitter for display
     })) || [],
-    subAgentsSectionExpanded: (resumeSession?.subAgents?.length || 0) > 0, // Auto-expand if agents exist
+    subAgentsSectionExpanded: (resumeSession?.subAgents?.length || 0) > 0,
+    contextSectionExpanded: true,
+    todosSectionExpanded: true,
+    toolsSectionExpanded: false,
+    changesSectionExpanded: false,
 
     expandedAgentIds: new Set(),
     expandedChipId: null,
@@ -372,16 +377,17 @@ export const ChatApp: React.FC<{
     agentMessagesVisible: new Map(),
     expandedAgentMessageIds: new Set(),
     activeAgentTabId: null,
+    openedSubagentTabs: [] as string[],
     // Agent panel resize state
     agentPanelHeight: 15, // Default 15 rows for agent panel
     isDraggingResize: false,
     dragStartY: null,
     dragStartHeight: null,
     // Sidebar layout state
-    leftSidebarOpen: false,
-    rightSidebarOpen: false,
-    leftSidebarWidth: 24,
-    rightSidebarWidth: 24,
+    leftSidebarOpen: true,
+    rightSidebarOpen: true,
+    leftSidebarWidth: 40,
+    rightSidebarWidth: 40,
     isDraggingSidebar: null,
     dragStartX: null,
     dragStartLeftWidth: null,
@@ -2681,8 +2687,8 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
     }
 
     // If the terminal sends LF ("linefeed") via a keybind (e.g. Ghostty `shift+enter=text:\n`),
-    // always treat it as inserting a newline
-    if (key.name === 'linefeed') {
+    // Only handle if shift isn't pressed (to avoid double-fire with the shift+enter handler above)
+    if (key.name === 'linefeed' && !key.shift) {
       setInputSegments((prev) => {
         const lastSegment = prev[prev.length - 1];
         if (!lastSegment || lastSegment.type !== 'text') {
@@ -2942,6 +2948,9 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
   // Compute grouped tool activity for chips display
   const toolActivity = useMemo(() => extractToolActivity(state.messages, state.greyOutFinishedTools), [state.messages, state.greyOutFinishedTools]);
 
+  // Extract todos from todowrite tool calls
+  const todos = useMemo(() => extractTodos(state.messages), [state.messages]);
+
   // Compute input mode for visual feedback
   const inputMode = useMemo(() => {
     const text = segmentsToDisplayString(inputSegments);
@@ -2956,7 +2965,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
   const inputModelLabel = state.currentModel === 'auto' ? 'Auto' : getModelDisplayFromPreference(state.currentModel);
   const inputProviderLabel = providers[selectedProviderIndex]?.name || '';
 
-  const minSidebarWidth = 25;
+  const minSidebarWidth = 40;
   const minMainWidth = 40;
   const sidebarDividerWidth = 1;
   const mainContentWidth = useMemo(() => {
@@ -3452,47 +3461,63 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                 backgroundColor: assistantCardBackground
               }}
             >
-              <box
-                border={true}
-                borderStyle="rounded"
-                borderColor={activeTheme.colors.border}
-                style={{ marginLeft: 1, marginRight: 1, marginTop: 0, flexDirection: 'row', height: 3 }}
-              >
+              <box style={{ flexShrink: 0, zIndex: 100, flexDirection: 'column', marginBottom: 1 }}>
+                {(() => {
+                  const firstTabWidth = Math.floor((state.leftSidebarWidth - 1) / 2);
+                  const secondTabWidth = state.leftSidebarWidth - 1 - firstTabWidth;
+                  return (
+                    <box style={{ flexDirection: 'row' }}>
+                      <text content={'▔'.repeat(firstTabWidth)} fg={leftSidebarTab === 'sessions' ? activeTheme.colors.highlight : panelBackground} bg={panelBackground} />
+                      <text content="▔" fg={panelBackground} bg={panelBackground} />
+                      <text content={'▔'.repeat(secondTabWidth)} fg={leftSidebarTab === 'files' ? activeTheme.colors.highlight : panelBackground} bg={panelBackground} />
+                    </box>
+                  );
+                })()}
                 <box
                   style={{
                     flexDirection: 'row',
-                    flexGrow: 1,
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    paddingLeft: 1,
-                    paddingRight: 1
+                    backgroundColor: panelBackground
                   }}
-                  onMouseUp={() => setLeftSidebarTab('sessions')}
                 >
-                  <text
-                    content={`Sessions (${leftSidebarSessions.length})`}
-                    fg={leftSidebarTab === 'sessions' ? activeTheme.colors.highlight : activeTheme.colors.muted}
-                    bold={leftSidebarTab === 'sessions'}
-                  />
+                  <box
+                    style={{
+                      flexDirection: 'row',
+                      flexGrow: 1,
+                      flexBasis: 0,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      paddingLeft: 1,
+                      paddingRight: 1
+                    }}
+                    onMouseUp={() => setLeftSidebarTab('sessions')}
+                  >
+                    <text
+                      content={`Sessions (${leftSidebarSessions.length})`}
+                      fg={leftSidebarTab === 'sessions' ? activeTheme.colors.highlight : activeTheme.colors.muted}
+                      bold={leftSidebarTab === 'sessions' ? true : false}
+                    />
+                  </box>
+                  <text content="▐" fg={activeTheme.colors.border} />
+                  <box
+                    style={{
+                      flexDirection: 'row',
+                      flexGrow: 1,
+                      flexBasis: 0,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      paddingLeft: 1,
+                      paddingRight: 1
+                    }}
+                    onMouseUp={() => setLeftSidebarTab('files')}
+                  >
+                    <text
+                      content="Files"
+                      fg={leftSidebarTab === 'files' ? activeTheme.colors.highlight : activeTheme.colors.muted}
+                      bold={leftSidebarTab === 'files' ? true : false}
+                    />
+                  </box>
                 </box>
-                <text content="│" fg={activeTheme.colors.border} />
-                <box
-                  style={{
-                    flexDirection: 'row',
-                    flexGrow: 1,
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    paddingLeft: 1,
-                    paddingRight: 1
-                  }}
-                  onMouseUp={() => setLeftSidebarTab('files')}
-                >
-                  <text
-                    content="Files"
-                    fg={leftSidebarTab === 'files' ? activeTheme.colors.highlight : activeTheme.colors.muted}
-                    bold={leftSidebarTab === 'files'}
-                  />
-                </box>
+                <text content={'▀'.repeat(state.leftSidebarWidth)} fg={panelBackground} />
               </box>
               <box style={{ paddingLeft: 1, paddingRight: 1, paddingTop: 1, flexDirection: 'column', flexGrow: 1 }}>
                 {leftSidebarTab === 'sessions' ? (
@@ -3545,7 +3570,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                                 }}
                               >
                                 <text
-                                  content={`${isExpanded ? '▾' : '▸'} ${label}`}
+                                  content={`${isExpanded ? '▾' : '▣'} ${label}`}
                                   fg={activeTheme.colors.secondary}
                                   bold
                                 />
@@ -3553,8 +3578,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                               {isExpanded && group.map((session) => {
                                 const isCurrent = !!state.sessionId && session.sessionId === state.sessionId;
                                 const statusDot = session.status === 'active' ? '●' : '○';
-                                const lineColor = isCurrent ? dialogHighlightText : activeTheme.colors.muted;
-                                const rowStyle = isCurrent ? { backgroundColor: activeTheme.colors.highlight } : {};
+                                const lineColor = isCurrent ? activeTheme.colors.highlight : activeTheme.colors.muted;
                                 return (
                                   <box
                                     key={session.sessionId}
@@ -3562,8 +3586,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                                       flexDirection: 'column',
                                       paddingLeft: 1,
                                       paddingRight: 1,
-                                      marginBottom: 1,
-                                      ...rowStyle
+                                      marginBottom: 1
                                     }}
                                   >
                                     <text
@@ -3574,6 +3597,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                                     <text
                                       content={`${formatSessionDate(session.updatedAt)} · ${session.messageCount} msgs`}
                                       fg={lineColor}
+                                      bold={isCurrent}
                                     />
                                   </box>
                                 );
@@ -3706,21 +3730,50 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
         )}
 
         <box style={{ flexDirection: 'column', flexGrow: 1 }}>
-          <box style={{ paddingLeft: 1, paddingRight: 1, paddingTop: 1, flexShrink: 0, zIndex: 100 }}>
+          <box style={{ flexShrink: 0, zIndex: 100, flexDirection: 'column', marginBottom: 1 }}>
+            {(() => {
+              const openedAgents = state.subAgents.filter((agent) => state.openedSubagentTabs.includes(agent.id));
+              const totalTabs = 1 + openedAgents.length;
+              const numDividers = openedAgents.length;
+              const availableWidth = mainContentWidth - numDividers;
+              const baseWidth = Math.floor(availableWidth / totalTabs);
+              const remainder = availableWidth % totalTabs;
+              const sessionWidth = baseWidth;
+              const agentWidths = openedAgents.map((_, idx) => baseWidth + (idx < remainder ? 1 : 0));
+              
+              return (
+                <box style={{ flexDirection: 'row' }}>
+                  <text 
+                    content={'▔'.repeat(sessionWidth)} 
+                    fg={!activeCenterAgent ? activeTheme.colors.highlight : panelBackground} 
+                    bg={panelBackground} 
+                  />
+                  {openedAgents.map((agent, idx) => {
+                    const isActive = activeCenterAgent?.id === agent.id;
+                    return (
+                      <React.Fragment key={`center-tab-bar-${agent.id}`}>
+                        <text content="▔" fg={panelBackground} bg={panelBackground} />
+                        <text 
+                          content={'▔'.repeat(agentWidths[idx])} 
+                          fg={isActive ? activeTheme.colors.highlight : panelBackground} 
+                          bg={panelBackground} 
+                        />
+                      </React.Fragment>
+                    );
+                  })}
+                </box>
+              );
+            })()}
             <box
-              border={true}
-              borderStyle="rounded"
-              borderColor={activeTheme.colors.border}
               style={{
                 flexDirection: 'row',
-                height: 3,
                 backgroundColor: panelBackground
               }}
             >
               <box
                 style={{
                   flexDirection: 'row',
-                  flexGrow: state.subAgents.length > 0 ? 2 : 1,
+                  flexGrow: 1,
                   justifyContent: 'center',
                   alignItems: 'center',
                   paddingLeft: 1,
@@ -3736,34 +3789,49 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                   bold={!activeCenterAgent}
                 />
               </box>
-              {state.subAgents.map((agent) => {
-                const isActive = activeCenterAgent?.id === agent.id;
-                return (
-                  <React.Fragment key={`center-tab-${agent.id}`}>
-                    <text content="│" fg={activeTheme.colors.border} />
-                    <box
-                      style={{
-                        flexDirection: 'row',
-                        flexGrow: 1,
-                        justifyContent: 'center',
-                        alignItems: 'center',
-                        paddingLeft: 1,
-                        paddingRight: 1
-                      }}
-                      onMouseUp={() => {
-                        updateState({ activeAgentTabId: agent.id });
-                      }}
-                    >
-                      <text
-                        content={agent.id}
-                        fg={isActive ? activeTheme.colors.highlight : activeTheme.colors.muted}
-                        bold={isActive}
-                      />
-                    </box>
-                  </React.Fragment>
-                );
-              })}
+              {state.openedSubagentTabs.length > 0 && <text content="▐" fg={activeTheme.colors.border} />}
+              {state.subAgents
+                .filter((agent) => state.openedSubagentTabs.includes(agent.id))
+                .map((agent, idx, arr) => {
+                  const isActive = activeCenterAgent?.id === agent.id;
+                  return (
+                    <React.Fragment key={`center-tab-${agent.id}`}>
+                      <box
+                        style={{
+                          flexDirection: 'row',
+                          flexGrow: 1,
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          paddingLeft: 1,
+                          paddingRight: 1
+                        }}
+                        onMouseUp={() => {
+                          updateState({ activeAgentTabId: agent.id });
+                        }}
+                      >
+                        <text
+                          content={agent.id}
+                          fg={isActive ? activeTheme.colors.highlight : activeTheme.colors.muted}
+                          bold={isActive}
+                        />
+                        <text
+                          content=" ×"
+                          fg={activeTheme.colors.muted}
+                          onMouseUp={(e) => {
+                            e.stopPropagation();
+                            updateState((prev) => ({
+                              openedSubagentTabs: prev.openedSubagentTabs.filter((id) => id !== agent.id),
+                              activeAgentTabId: prev.activeAgentTabId === agent.id ? null : prev.activeAgentTabId
+                            }));
+                          }}
+                        />
+                      </box>
+                      {idx < arr.length - 1 && <text content="▐" fg={activeTheme.colors.border} />}
+                    </React.Fragment>
+                  );
+                })}
             </box>
+            <text content={'▀'.repeat(mainContentWidth)} fg={panelBackground} />
           </box>
           {/* Messages area */}
           <scrollbox
@@ -3886,29 +3954,43 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
               const flushToolGroup = () => {
                 if (toolGroup.length === 0) return;
 
-                // Aggregate tool messages by name
-                const toolCounts = new Map<string, number>();
-                toolGroup.forEach(msg => {
-                  const name = msg.toolName || 'tool';
-                  toolCounts.set(name, (toolCounts.get(name) || 0) + 1);
+                toolGroup.forEach((msg, idx) => {
+                  const formatted = formatToolCall(msg);
+                  const toolKey = `tool-${msg.timestamp.getTime()}-${idx}`;
+                  const headerColor = formatted.isComplete ? activeTheme.colors.muted : activeTheme.colors.info;
+                  
+                  elements.push(
+                    <box key={toolKey} style={{ flexDirection: 'column', marginBottom: 1 }}>
+                      <text content={formatted.header} fg={headerColor} />
+                      {formatted.diff && formatted.diff.length > 0 && (
+                        <box style={{ flexDirection: 'column', marginTop: 0, marginLeft: 2, marginBottom: 0 }}>
+                          {formatted.diff.slice(0, 20).map((line, lineIdx) => {
+                            const lineNumStr = line.lineNumber !== undefined 
+                              ? String(line.lineNumber).padStart(4, ' ') + ' '
+                              : '     ';
+                            const prefix = line.type === 'removed' ? '-' : line.type === 'added' ? '+' : ' ';
+                            const lineColor = line.type === 'removed' 
+                              ? activeTheme.colors.error 
+                              : line.type === 'added' 
+                                ? activeTheme.colors.success 
+                                : activeTheme.colors.muted;
+                            const content = `${lineNumStr}${prefix} ${line.content}`;
+                            return (
+                              <text 
+                                key={`diff-${lineIdx}`} 
+                                content={content.length > 80 ? content.slice(0, 77) + '...' : content}
+                                fg={lineColor} 
+                              />
+                            );
+                          })}
+                          {formatted.diff.length > 20 && (
+                            <text content={`     ... ${formatted.diff.length - 20} more lines`} fg={activeTheme.colors.muted} />
+                          )}
+                        </box>
+                      )}
+                    </box>
+                  );
                 });
-
-                elements.push(
-                  <box
-                    key={`tool-group-${toolGroup[0].timestamp.getTime()}`}
-                    style={{ flexDirection: 'row', flexWrap: 'wrap', paddingLeft: 0, marginBottom: 1 }}
-                  >
-                    {Array.from(toolCounts.entries()).map(([name, count]) => (
-                      <text
-                        key={`tool-${name}-${toolGroup[0].timestamp.getTime()}`}
-                        content={` ${name.toLowerCase()}${count > 1 ? ` x${count}` : ''} `}
-                        fg="black"
-                        bg={activeTheme.colors.toolChip}
-                        style={{ marginRight: 1 }}
-                      />
-                    ))}
-                  </box>
-                );
                 toolGroup = [];
               };
 
@@ -3925,28 +4007,25 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
 
                 if (msg.role === 'user') {
                   const timestamp = formatTimestamp(msg.timestamp);
-                  const railLines = 1 + estimateWrappedLines(msg.content);
+                  const contentLines = estimateWrappedLines(msg.content);
+                  const totalLines = contentLines + 3;
+                  const railBar = Array.from({ length: totalLines }, () => '▌').join('\n');
                   elements.push(
-                    <box key={key} style={{ flexDirection: 'row', marginBottom: 1 }}>
-                      <box style={{ width: 1, flexShrink: 0 }}>
-                        <text content={buildRailLine(railLines)} fg={messageRailColors.user} />
-                      </box>
-                      <box
-                        style={{
-                          flexDirection: 'column',
-                          flexGrow: 1,
-                          backgroundColor: panelBackground,
-                          paddingLeft: 1,
-                          paddingRight: 1,
-                          paddingTop: 1,
-                          paddingBottom: 1
-                        }}
-                      >
-                        <box style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 0 }}>
-                          <text content={localUsername} fg={activeTheme.colors.userMessage} bold />
-                          <text content={timestamp} fg={activeTheme.colors.separator} />
+                    <box
+                      key={key}
+                      style={{
+                        flexDirection: 'row',
+                        marginBottom: 1,
+                        backgroundColor: panelBackground
+                      }}
+                    >
+                      <text content={railBar} fg={messageRailColors.user} style={{ flexShrink: 0 }} />
+                      <box style={{ flexDirection: 'column', flexGrow: 1, paddingLeft: 1, paddingTop: 1, paddingBottom: 1 }}>
+                        {renderMarkdown(msg.content, 'white')}
+                        <box style={{ flexDirection: 'row' }}>
+                          <text content={localUsername} fg={activeTheme.colors.userMessage} />
+                          <text content={` · ${timestamp}`} fg={activeTheme.colors.muted} />
                         </box>
-                        {renderMarkdown(msg.content, activeTheme.colors.assistantMessage)}
                       </box>
                     </box>
                   );
@@ -3954,31 +4033,9 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                 }
 
                 if (msg.role === 'assistant') {
-                  const timestamp = formatTimestamp(msg.timestamp);
-                  const railLines = 1 + estimateWrappedLines(msg.content);
-
                   elements.push(
-                    <box key={key} style={{ flexDirection: 'row', marginBottom: 1 }}>
-                      <box style={{ width: 1, flexShrink: 0 }}>
-                        <text content={buildRailLine(railLines)} fg={messageRailColors.assistant} />
-                      </box>
-                      <box
-                        style={{
-                          flexDirection: 'column',
-                          flexGrow: 1,
-                          backgroundColor: assistantCardBackground,
-                          paddingLeft: 1,
-                          paddingRight: 1,
-                          paddingTop: 1,
-                          paddingBottom: 1
-                        }}
-                      >
-                        <box style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 0 }}>
-                          <text content={assistantName} fg={activeTheme.colors.primary} bold />
-                          <text content={timestamp} fg={activeTheme.colors.separator} />
-                        </box>
-                        {renderMarkdown(msg.content, activeTheme.colors.assistantMessage)}
-                      </box>
+                    <box key={key} style={{ flexDirection: 'column', marginBottom: 1, paddingLeft: 1 }}>
+                      {renderMarkdown(msg.content, activeTheme.colors.assistantMessage)}
                     </box>
                   );
                   return;
@@ -4009,7 +4066,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                   // All other system messages get consistent spacing
                   elements.push(
                     <box key={key} style={{ marginBottom: 1 }}>
-                      <text content={msg.content} fg={msg.content.includes('[↻]') || msg.content.startsWith('Keyboard:') ? activeTheme.colors.muted : activeTheme.colors.systemMessage} />
+                      <text content={msg.content} fg={msg.content.includes('[↻]') || msg.content.startsWith('Keyboard:') || msg.content.startsWith('[A]') || msg.content.startsWith('[i]') ? activeTheme.colors.muted : activeTheme.colors.systemMessage} />
                     </box>
                   );
                   return;
@@ -4214,7 +4271,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
           backgroundColor: panelBackground
         }}
       >
-        <text content={Array.from({ length: inputHeight }, () => '│').join('\n')} fg="cyan" style={{ flexShrink: 0 }} />
+        <text content={Array.from({ length: inputHeight }, () => '▌').join('\n')} fg="cyan" style={{ flexShrink: 0 }} />
         <box
           style={{
             flexDirection: 'column',
@@ -4256,99 +4313,97 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
           )}
           {/* Input area - in the middle */}
           {true ?
-            <box style={{ flexDirection: 'row' }}>
-              <box style={{ flexDirection: 'column', flexGrow: 1, paddingLeft: 1 }}>
-                <box style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                  {inputPrompt && (
-                    <text content={inputPrompt} fg={inputBorderColor === 'gray' ? 'gray' : inputBorderColor} bold />
-                  )}
-                  {(() => {
-                  // Check if empty (ignoring context chips)
-                  const textAndChipSegments = inputSegments.filter((s) => s.type !== 'context');
-                  const isEmpty = textAndChipSegments.length === 1 &&
-                                 textAndChipSegments[0].type === 'text' &&
-                                 textAndChipSegments[0].text === '';
+            <box style={{ flexDirection: 'row', flexGrow: 1 }}>
+              <box style={{ flexDirection: 'column', flexGrow: 1, paddingLeft: 1, justifyContent: 'space-between' }}>
+                <box style={{ flexDirection: 'column' }}>
+                  <box style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                    {inputPrompt && (
+                      <text content={inputPrompt} fg={inputBorderColor === 'gray' ? 'gray' : inputBorderColor} bold />
+                    )}
+                    {(() => {
+                    const textAndChipSegments = inputSegments.filter((s) => s.type !== 'context');
+                    const isEmpty = textAndChipSegments.length === 1 &&
+                                   textAndChipSegments[0].type === 'text' &&
+                                   textAndChipSegments[0].text === '';
 
-                  if (isEmpty) {
-                    return <text content={cursorVisible ? '█' : ' '} fg="gray" />;
-                  }
+                    if (isEmpty) {
+                      return <text content={cursorVisible ? '█' : ' '} fg="gray" />;
+                    }
 
-                  // Render text and file chip segments (not context chips - those are on top line)
-                  const nonContextSegments = inputSegments.filter((s) => s.type !== 'context');
-                  const isLastSegmentText = nonContextSegments[nonContextSegments.length - 1]?.type === 'text';
-                  return (
-                    <>
-                      {nonContextSegments.map((segment, idx) => {
-                        const isLastText = isLastSegmentText && idx === nonContextSegments.length - 1;
+                    const nonContextSegments = inputSegments.filter((s) => s.type !== 'context');
+                    const isLastSegmentText = nonContextSegments[nonContextSegments.length - 1]?.type === 'text';
+                    return (
+                      <>
+                        {nonContextSegments.map((segment, idx) => {
+                          const isLastText = isLastSegmentText && idx === nonContextSegments.length - 1;
 
-                        if (segment.type === 'text') {
-                          // For the last text segment, render with cursor in correct position
-                          if (isLastText) {
-                            const text = segment.text;
-                            // Check if text contains newlines for multi-line rendering
-                            if (text.includes('\n')) {
+                          if (segment.type === 'text') {
+                            if (isLastText) {
+                              const text = segment.text;
+                              if (text.includes('\n')) {
+                                return (
+                                  <box key={`text-${idx}`} style={{ flexDirection: 'column' }}>
+                                    {renderMultilineText(text, 'white', cursorPosition, cursorVisible)}
+                                  </box>
+                                );
+                              }
+                              const beforeCursor = text.slice(0, cursorPosition);
+                              const afterCursor = text.slice(cursorPosition);
                               return (
                                 <React.Fragment key={`text-${idx}`}>
-                                  {renderMultilineText(text, 'white', cursorPosition, cursorVisible)}
+                                  <text content={beforeCursor} fg="white" />
+                                  <text content={cursorVisible ? '█' : ' '} fg="gray" />
+                                  <text content={afterCursor} fg="white" />
                                 </React.Fragment>
                               );
                             }
-                            // Single-line text with cursor
-                            const beforeCursor = text.slice(0, cursorPosition);
-                            const afterCursor = text.slice(cursorPosition);
+                            if (segment.text.includes('\n')) {
+                              return (
+                                <box key={`text-${idx}`} style={{ flexDirection: 'column' }}>
+                                  {renderMultilineText(segment.text, 'white', -1, false)}
+                                </box>
+                              );
+                            }
+                            return <text key={`text-${idx}`} content={segment.text} fg="white" />;
+                          } else if (segment.type === 'chip') {
                             return (
-                              <React.Fragment key={`text-${idx}`}>
-                                <text content={beforeCursor} fg="white" />
-                                <text content={cursorVisible ? '█' : ' '} fg="gray" />
-                                <text content={afterCursor} fg="white" />
-                              </React.Fragment>
+                              <text
+                                key={`chip-${segment.chip.id}`}
+                                content={` ${segment.chip.label} × `}
+                                bg={activeTheme.colors.highlight}
+                                fg="black"
+                                bold={true}
+                                onMouseUp={() => {
+                                  setInputSegments((prev) => prev.filter((_, i) => i !== idx));
+                                }}
+                              />
                             );
                           }
-                          // Non-last text segments - check for newlines
-                          if (segment.text.includes('\n')) {
-                            return (
-                              <React.Fragment key={`text-${idx}`}>
-                                {renderMultilineText(segment.text, 'white', -1, false)}
-                              </React.Fragment>
-                            );
-                          }
-                          return <text key={`text-${idx}`} content={segment.text} fg="white" />;
-                        } else if (segment.type === 'chip') {
-                          return (
-                            <text
-                              key={`chip-${segment.chip.id}`}
-                              content={` ${segment.chip.label} × `}
-                              bg={activeTheme.colors.highlight}
-                              fg="black"
-                              bold={true}
-                              onMouseUp={() => {
-                                // Remove chip when clicked
-                                setInputSegments((prev) => prev.filter((_, i) => i !== idx));
-                              }}
-                            />
-                          );
-                        }
-                        return null;
-                      })}
-                      {/* Cursor at end if last segment is not text */}
-                      {!isLastSegmentText && <text content={cursorVisible ? '█' : ' '} fg="gray" />}
-                    </>
-                  );
-                })()}
-                </box>
-                <box style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <box style={{ flexDirection: 'row' }}>
-                    <text content={state.agentMode === 'planning' ? 'Planning' : 'Coding'} fg="cyan" />
-                    <text content="  " />
-                    <text content={inputModelLabel} fg="white" />
-                    {inputProviderLabel ? (
-                      <>
-                        <text content="  " />
-                        <text content={inputProviderLabel} fg="gray" />
+                          return null;
+                        })}
+                        {!isLastSegmentText && <text content={cursorVisible ? '█' : ' '} fg="gray" />}
                       </>
-                    ) : null}
+                    );
+                  })()}
                   </box>
-                  <text content="tab switch agent  ctrl+p commands" fg="gray" />
+                </box>
+                <box style={{ flexDirection: 'column' }}>
+                  <text content="" />
+                  <box style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <box style={{ flexDirection: 'row' }}>
+                      <text content={state.agentMode === 'planning' ? 'Planning' : 'Coding'} fg="cyan" />
+                      <text content="  " />
+                      <text content={inputModelLabel} fg="white" />
+                      {inputProviderLabel ? (
+                        <>
+                          <text content="  " />
+                          <text content={inputProviderLabel} fg="gray" />
+                        </>
+                      ) : null}
+                    </box>
+                    <text content="tab switch agent  ctrl+p commands" fg="gray" />
+                  </box>
+                  <text content="" />
                 </box>
               </box>
             </box>
@@ -4391,13 +4446,17 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
           const filledWidth = Math.min(barWidth, Math.round((contextPercentUsed / 100) * barWidth));
           const emptyWidth = Math.max(0, barWidth - filledWidth);
           const contextBar = `${'█'.repeat(filledWidth)}${'░'.repeat(emptyWidth)}`;
+          const animFrame = Math.floor(Date.now() / 100) % 10;
           const toolCount = toolActivity.length;
-          const todoCount = 0;
+          const todoCount = todos.length;
           const fileCount = state.contextChips.length;
           const contextCount = state.contextChips.length;
           const subagentCount = state.subAgents.length;
           const lastUserMessage = [...state.messages].reverse().find((msg) => msg.role === 'user');
-          const sessionTitle = lastUserMessage?.content.split('\n')[0].trim().slice(0, 32) || 'New Session';
+          // Truncate title based on sidebar width: width - padding(4) - "Rename"(6) - gap(2) = max title
+          const maxTitleLength = Math.max(12, state.rightSidebarWidth - 12);
+          const rawTitle = lastUserMessage?.content.split('\n')[0].trim() || 'New Session';
+          const sessionTitle = rawTitle.length > maxTitleLength ? rawTitle.slice(0, maxTitleLength - 1) + '…' : rawTitle;
           const modeLabel =
             state.currentTool ? 'TOOL' :
             state.isResponding ? 'AGNT' :
@@ -4477,16 +4536,27 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                   width: state.rightSidebarWidth,
                   flexShrink: 0,
                   flexDirection: 'column',
-                  backgroundColor: panelBackground
+                  backgroundColor: assistantCardBackground
                 }}
               >
-                <box style={{ paddingLeft: 2, paddingRight: 2, paddingTop: 1, flexDirection: 'column' }}>
+                <text content={'▄'.repeat(state.rightSidebarWidth)} fg={panelBackground} />
+                <box style={{ paddingLeft: 2, paddingRight: 2, flexDirection: 'row', justifyContent: 'space-between', backgroundColor: panelBackground, flexWrap: 'nowrap', overflow: 'hidden' }}>
                   {activeCenterAgent ? (
                     <>
-                      <box style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 1 }}>
-                        <text content={activeCenterAgent.id} fg={activeTheme.colors.assistantMessage} bold />
-                        <text content={agentModelLabel} fg={activeTheme.colors.muted} />
-                      </box>
+                      <text content={activeCenterAgent.id} fg={activeTheme.colors.assistantMessage} bold />
+                      <text content={agentModelLabel} fg={activeTheme.colors.muted} />
+                    </>
+                  ) : (
+                    <>
+                      <text content={sessionTitle} fg={activeTheme.colors.assistantMessage} bold />
+                      <text content="Rename" fg={activeTheme.colors.secondary} underline />
+                    </>
+                  )}
+                </box>
+                <text content={'▀'.repeat(state.rightSidebarWidth)} fg={panelBackground} />
+                <box style={{ paddingLeft: 1, paddingRight: 1, flexDirection: 'column' }}>
+                  {activeCenterAgent ? (
+                    <>
                       <text content="Agent" fg={activeTheme.colors.muted} bold />
                       <box style={{ flexDirection: 'column', marginTop: 1, marginBottom: 1 }}>
                         <box style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
@@ -4529,10 +4599,6 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                     </>
                   ) : (
                     <>
-                      <box style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 1 }}>
-                        <text content={sessionTitle} fg={activeTheme.colors.assistantMessage} bold />
-                        <text content="Rename" fg={activeTheme.colors.secondary} underline />
-                      </box>
                       <text content="Status" fg={activeTheme.colors.muted} bold />
                       <box style={{ flexDirection: 'column', marginTop: 1, marginBottom: 1 }}>
                         <box style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
@@ -4587,22 +4653,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                             />
                           )}
                         </box>
-                        <box
-                          style={{ flexDirection: 'row', justifyContent: 'space-between' }}
-                          onMouseUp={() => {
-                            updateState((prev) => ({
-                              activeStatusPopup: prev.activeStatusPopup === 'mode' ? null : 'mode',
-                              selectedPopupIndex: state.agentMode === 'coding' ? 0 : 1
-                            }));
-                          }}
-                        >
-                          <text content="Mode" fg={activeTheme.colors.muted} />
-                          <text content={modeLabel} fg={modeColor} bold />
-                        </box>
-                        <box style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                          <text content="Agents" fg={activeTheme.colors.muted} />
-                          <text content={`${state.subAgents.length}`} fg={activeTheme.colors.secondary} bold />
-                        </box>
+
                         {queueLabel && (
                           <box style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                             <text content="Queue" fg={activeTheme.colors.muted} />
@@ -4712,30 +4763,120 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                       </box>
                       <text content={`${totalTokens.toLocaleString()} tokens (0% prompt cached)`} fg={activeTheme.colors.muted} />
                       <text content="$0.00 spent (saved $0.00)" fg={activeTheme.colors.muted} />
-                      <box style={{ flexDirection: 'row', marginTop: 1, marginBottom: 1 }}>
-                        <text content={`○ Tools(${toolCount})`} fg={activeTheme.colors.muted} />
-                        <text content="  ○ " fg={activeTheme.colors.muted} />
-                        <text content={`Todos(${todoCount})`} fg={activeTheme.colors.muted} />
-                        <text content="  ○ " fg={activeTheme.colors.muted} />
-                        <text content={`Files(${fileCount})`} fg={activeTheme.colors.assistantMessage} bold />
+                      <box
+                        style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 1 }}
+                        onMouseUp={() => updateState((prev) => ({ todosSectionExpanded: !prev.todosSectionExpanded }))}
+                      >
+                        <text content={`${state.todosSectionExpanded ? '▾' : '▣'} Todos (${todoCount})`} fg={activeTheme.colors.secondary} bold />
                       </box>
-                      <box style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 1 }}>
-                        <text content={`▾ Context (${contextCount})`} fg={activeTheme.colors.secondary} bold />
+                      {state.todosSectionExpanded && (
+                        todoCount === 0 ? (
+                          <text content="  No todos yet" fg={activeTheme.colors.muted} />
+                        ) : (
+                          todos.map((todo) => {
+                            const statusIcon = todo.status === 'completed' ? '✓' :
+                              todo.status === 'in_progress' ? '◐' :
+                              todo.status === 'cancelled' ? '✗' : '○';
+                            const statusColor = todo.status === 'completed' ? activeTheme.colors.success :
+                              todo.status === 'in_progress' ? activeTheme.colors.info :
+                              todo.status === 'cancelled' ? activeTheme.colors.error : activeTheme.colors.muted;
+                            const contentColor = todo.status === 'completed' ? activeTheme.colors.muted : activeTheme.colors.text;
+                            return (
+                              <box key={`todo-${todo.id}`} style={{ flexDirection: 'row' }}>
+                                <text content={`  ${statusIcon} `} fg={statusColor} />
+                                <text content={todo.content.slice(0, 35) + (todo.content.length > 35 ? '…' : '')} fg={contentColor} />
+                              </box>
+                            );
+                          })
+                        )
+                      )}
+                      <box
+                        style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 1 }}
+                        onMouseUp={() => updateState((prev) => ({ toolsSectionExpanded: !prev.toolsSectionExpanded }))}
+                      >
+                        <text content={`${state.toolsSectionExpanded ? '▾' : '▣'} Tools (${toolCount})`} fg={activeTheme.colors.secondary} bold />
+                      </box>
+                      {state.toolsSectionExpanded && (
+                        toolCount === 0 ? (
+                          <text content="  No tools used yet" fg={activeTheme.colors.muted} />
+                        ) : (
+                          <box style={{ flexDirection: 'row', flexWrap: 'wrap', paddingLeft: 2 }}>
+                            {toolActivity.map((tool) => (
+                              <text
+                                key={`tool-chip-${tool.name}`}
+                                content={` ${tool.name.toLowerCase()}${tool.count > 1 ? ` x${tool.count}` : ''} `}
+                                fg={tool.isActive ? 'black' : activeTheme.colors.muted}
+                                bg={tool.isActive ? activeTheme.colors.toolChipActive : undefined}
+                                style={{ marginRight: 1 }}
+                              />
+                            ))}
+                          </box>
+                        )
+                      )}
+                      <box
+                        style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 1 }}
+                        onMouseUp={() => updateState((prev) => ({ contextSectionExpanded: !prev.contextSectionExpanded }))}
+                      >
+                        <text content={`${state.contextSectionExpanded ? '▾' : '▣'} Context (${contextCount})`} fg={activeTheme.colors.secondary} bold />
                         <text content="+ edit" fg={activeTheme.colors.secondary} />
                       </box>
-                      {contextCount === 0 ? (
-                        <text content="No contexts created yet" fg={activeTheme.colors.muted} />
-                      ) : (
-                        state.contextChips.map((chip) => (
-                          <text key={`context-side-${chip.id}`} content={`• ${chip.label}`} fg={activeTheme.colors.muted} />
-                        ))
+                      {state.contextSectionExpanded && (
+                        contextCount === 0 ? (
+                          <text content="  No contexts created yet" fg={activeTheme.colors.muted} />
+                        ) : (
+                          state.contextChips.map((chip) => (
+                            <text key={`context-side-${chip.id}`} content={`  • ${chip.label}`} fg={activeTheme.colors.muted} />
+                          ))
+                        )
                       )}
-                      <box style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 1 }}>
-                        <text content={`▾ Subagents (${subagentCount})`} fg={activeTheme.colors.secondary} bold />
-                        <text content="+ add" fg={activeTheme.colors.secondary} />
+                      <box
+                        style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 1 }}
+                        onMouseUp={() => updateState((prev) => ({ subAgentsSectionExpanded: !prev.subAgentsSectionExpanded }))}
+                      >
+                        <text content={`${state.subAgentsSectionExpanded ? '▾' : '▣'} Subagents (${subagentCount})`} fg={activeTheme.colors.secondary} bold />
                       </box>
-                      {subagentCount === 0 && (
-                        <text content="No subagents yet" fg={activeTheme.colors.muted} />
+                      {state.subAgentsSectionExpanded && (
+                        subagentCount === 0 ? (
+                          <text content="  No subagents yet" fg={activeTheme.colors.muted} />
+                        ) : (
+                          state.subAgents.map((agent, agentIdx) => {
+                            const brailleFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+                            const isProcessing = agent.status === 'running' || agent.status === 'waiting';
+                            const icon = isProcessing ? brailleFrames[animFrame % brailleFrames.length] : '•';
+                            const contextLabel = agent.progress?.percent !== undefined 
+                              ? `${agent.progress.percent}%` 
+                              : '';
+                            return (
+                              <box
+                                key={`subagent-${agent.id}`}
+                                style={{ flexDirection: 'row', justifyContent: 'space-between' }}
+                                onMouseUp={() => {
+                                  updateState((prev) => ({
+                                    openedSubagentTabs: prev.openedSubagentTabs.includes(agent.id)
+                                      ? prev.openedSubagentTabs
+                                      : [...prev.openedSubagentTabs, agent.id],
+                                    activeAgentTabId: agent.id
+                                  }));
+                                }}
+                              >
+                                <text content={`  ${icon} ${agent.id}`} fg={isProcessing ? activeTheme.colors.info : activeTheme.colors.muted} />
+                                <box style={{ flexDirection: 'row' }}>
+                                  {contextLabel && <text content={contextLabel} fg={activeTheme.colors.muted} style={{ marginRight: 2 }} />}
+                                  <text content={agent.status} fg={getAgentStatusColor(agent.status)} />
+                              </box>
+                            </box>
+                          );
+                        })
+                        )
+                      )}
+                      <box
+                        style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 1 }}
+                        onMouseUp={() => updateState((prev) => ({ changesSectionExpanded: !prev.changesSectionExpanded }))}
+                      >
+                        <text content={`${state.changesSectionExpanded ? '▾' : '▣'} Changes`} fg={activeTheme.colors.secondary} bold />
+                      </box>
+                      {state.changesSectionExpanded && (
+                        <text content="  No changes tracked yet" fg={activeTheme.colors.muted} />
                       )}
                     </>
                   )}

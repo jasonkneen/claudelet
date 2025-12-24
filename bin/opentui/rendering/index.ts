@@ -3,4 +3,5 @@
  */
 
 export { generateStartupBanner, LOGO } from './startup-banner.js';
-export { extractToolActivity, formatThinkingChip } from './tool-activity.js';
+export { extractToolActivity, extractTodos, formatThinkingChip } from './tool-activity.js';
+export type { TodoItem } from './tool-activity.js';

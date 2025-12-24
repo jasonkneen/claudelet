@@ -30,7 +30,8 @@
     "@types/react": "^19.2.7",
     "ink": "^6.5.1",
     "ink-text-input": "^6.0.0",
-    "react": "^19.2.0"
+    "react": "^19.2.0",
+    "unique-names-generator": "^4.7.1"
   },
   "devDependencies": {
     "typescript": "^5.9.3",

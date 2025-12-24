@@ -103,6 +103,9 @@ export type { TaskAnalysis, TaskContext } from './task-analyzer.js';
 export { SubAgentPool } from './sub-agent-pool.js';
 export type { SubAgent, SubAgentStatus } from './sub-agent-pool.js';
 
+// Export agent name generator
+export { generateAgentName, resetAgentNames } from './agent-names.js';
+
 // Export event coordinator
 export { EventCoordinator } from './event-coordinator.js';
 export type { SubAgentEvent, CoordinatorCommand } from './event-coordinator.js';
