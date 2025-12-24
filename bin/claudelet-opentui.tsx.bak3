@@ -100,6 +100,214 @@ const FILE_EXPLORER_PAGE_SIZE = 120;
 
 
 
+/**
+ * Read and parse the .todos.md file to extract current tasks
+ */
+async function readTaskList(): Promise<string> {
+  try {
+    const todoPath = path.resolve(process.cwd(), TODOS_FILE);
+    const content = await fsp.readFile(todoPath, 'utf-8');
+
+    if (!content.trim()) {
+      return '[i] No tasks found in session';
+    }
+
+    return content;
+  } catch (error) {
+    return "[i] No task list found (Claude hasn't created tasks yet)";
+  }
+}
+
+/**
+ * Resolve a file reference and get its content
+ */
+async function resolveFileReference(filePath: string): Promise<string | null> {
+  try {
+    const resolved = path.resolve(process.cwd(), filePath);
+
+    // Security: ensure file is within cwd
+    const cwd = process.cwd();
+    const normalized = path.normalize(resolved);
+    if (!normalized.startsWith(path.normalize(cwd))) {
+      return null;
+    }
+
+    const stat = await fsp.stat(resolved);
+    if (!stat.isFile()) {
+      return null;
+    }
+
+    if (stat.size > MAX_FILE_SIZE) {
+      return null;
+    }
+
+    const content = await fsp.readFile(resolved, 'utf-8');
+    return content;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Convert input segments to message content (with file content embedded)
+ */
+async function segmentsToMessageContent(segments: InputSegment[]): Promise<string> {
+  const parts = await Promise.all(
+    segments.map(async (seg) => {
+      if (seg.type === 'text') {
+        return seg.text;
+      } else if (seg.type === 'chip') {
+        const content = await resolveFileReference(seg.chip.filePath);
+        if (content) {
+          return '\`\`\`' + seg.chip.label + '\\n' + content + '\\n\`\`\`';
+        } else {
+          return `[File not found: ${seg.chip.label}]`;
+        }
+      } else {
+        // Context chips: include as metadata in message
+        return `[Context: ${seg.context.isInclude ? 'INCLUDE' : 'EXCLUDE'} ${seg.context.label}]`;
+      }
+    })
+  );
+  return parts.join('');
+}
+
+/**
+ * Get completions for @ file references
+ */
+async function getFileCompletions(prefix: string): Promise<string[]> {
+  try {
+    // Extract the path after @
+    const match = prefix.match(/@(.*)$/);
+    if (!match) {
+      return [];
+    }
+
+    const filePath = match[1];
+    let dirPath = '';
+    let filter = '';
+
+    // Determine directory and filter
+    const lastSlash = filePath.lastIndexOf('/');
+    if (lastSlash === -1) {
+      // No slash, suggest files in current dir matching prefix
+      dirPath = '.';
+      filter = filePath;
+    } else {
+      // Has slash, suggest files in that directory
+      dirPath = filePath.slice(0, lastSlash);
+      filter = filePath.slice(lastSlash + 1);
+    }
+
+    const resolvedDir = path.resolve(process.cwd(), dirPath);
+
+    // Security: ensure we don't escape cwd
+    const normalized = path.normalize(resolvedDir);
+    const cwd = path.normalize(process.cwd());
+
+    if (!normalized.startsWith(cwd)) {
+      return [];
+    }
+
+    // Read directory contents
+    try {
+      const entries = await fsp.readdir(resolvedDir, { withFileTypes: true });
+
+      const filtered = entries.filter((entry) => entry.name.startsWith(filter));
+
+      return filtered.map((entry) => {
+        const name = entry.name;
+        const suffix = entry.isDirectory() ? '/' : '';
+        const fullPath =
+          filePath.includes('/') ? filePath.slice(0, lastSlash + 1) + name + suffix : name + suffix;
+        return '@' + fullPath;
+      });
+    } catch {
+      return [];
+    }
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Find completions for current input segments
+ */
+async function getCompletionsWithAgents(segments: InputSegment[], agents: SubAgent[]): Promise<string[]> {
+  // Get the last text segment
+  const lastSegment = segments[segments.length - 1];
+  if (!lastSegment || lastSegment.type !== 'text') {
+    return [];
+  }
+
+  const input = lastSegment.text;
+
+  // Check if we're completing a command
+  if (input.startsWith('/') && segments.length === 1) {
+    return getCommandCompletions(input);
+  }
+
+  // Check if we're completing a file reference or agent reference
+  if (input.includes('@')) {
+    const lastAtIndex = input.lastIndexOf('@');
+    // Check if this @ is after a space (new token) or at start
+    if (lastAtIndex === 0 || input[lastAtIndex - 1] === ' ') {
+      const afterAt = input.slice(lastAtIndex);
+      const fileCompletions = await getFileCompletions(afterAt);
+
+      // Add active agents to completion list at the TOP
+      const agentCompletions = getAgentCompletions(afterAt, agents);
+
+      // Agents first, then files
+      return [...agentCompletions, ...fileCompletions];
+    }
+  }
+
+  return [];
+}
+
+/**
+ * Helper to switch model and update state/session
+ */
+async function switchModel(
+  model: 'auto' | 'fast' | 'smart-sonnet' | 'smart-opus',
+  session: AgentSessionHandle | null,
+  updateState: (updates: Partial<AppState> | ((prev: AppState) => Partial<AppState>)) => void
+): Promise<void> {
+  try {
+    if (session && model !== 'auto') {
+      await session.setModel(model);
+    }
+    updateState((prev: AppState) => ({
+      currentModel: model,
+      messages: [
+        ...prev.messages,
+        { role: 'system', content: `[+] Switched to ${model}`, timestamp: new Date() }
+      ]
+    }));
+  } catch (e) {
+    updateState((prev: AppState) => ({
+      messages: [
+        ...prev.messages,
+        {
+          role: 'system',
+          content: `[!] Failed to switch model: ${String(e)}`,
+          timestamp: new Date()
+        }
+      ]
+    }));
+  }
+}
+
+// Render counter for debugging
+let renderCount = 0;
+
+/**
+ * ToolActivityBoxes - Horizontal bordered boxes showing active tools
+ * Each tool appears as a bordered box with 1 char spacing, wraps to fit
+ * Similar styling to thinking/task indicators
+ */
+
 // Main entry point
 async function main(): Promise<void> {
   // Initialize debug log at startup for fresh session
