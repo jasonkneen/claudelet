@@ -378,6 +378,9 @@ export const ChatApp: React.FC<{
     expandedAgentMessageIds: new Set(),
     activeAgentTabId: null,
     openedSubagentTabs: [] as string[],
+    // File tab state
+    openedFileTabs: [] as { path: string; content: string; modified: boolean }[],
+    activeFileTabPath: null as string | null,
     // Agent panel resize state
     agentPanelHeight: 15, // Default 15 rows for agent panel
     isDraggingResize: false,
@@ -502,7 +505,10 @@ export const ChatApp: React.FC<{
   const [fileExplorerError, setFileExplorerError] = useState<Record<string, string>>({});
   const [fileExplorerHasMore, setFileExplorerHasMore] = useState<Record<string, boolean>>({});
   const [fileExplorerScrollOffset, setFileExplorerScrollOffset] = useState(0);
+  const [fileExplorerRoot, setFileExplorerRoot] = useState<string>(() => os.homedir());
+  const fileExplorerLastClickRef = useRef<{ path: string; time: number } | null>(null);
   const fileExplorerDirHandlesRef = useRef<Map<string, fs.Dir>>(new Map());
+  const [fileExplorerContextMenu, setFileExplorerContextMenu] = useState<{ x: number; y: number; path: string; type: 'file' | 'dir' } | null>(null);
 
   // KITT animation state (Knight Rider style moving light)
   const [kittPosition, setKittPosition] = useState(0);
@@ -3307,7 +3313,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
       const isExpanded = fileExplorerExpanded.has(dirPath);
       const isLoading = fileExplorerLoading.has(dirPath);
       const error = fileExplorerError[dirPath];
-      const name = dirPath === homeDir ? '~' : path.basename(dirPath);
+      const name = dirPath === homeDir ? '~' : path.basename(dirPath) || dirPath;
       nodes.push({
         kind: 'entry',
         entry: { name, path: dirPath, type: 'dir' },
@@ -3348,7 +3354,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
       }
     };
 
-    addDir(homeDir, 0);
+    addDir(fileExplorerRoot, 0);
     return nodes;
   }, [
     leftSidebarTab,
@@ -3356,7 +3362,8 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
     fileExplorerExpanded,
     fileExplorerLoading,
     fileExplorerError,
-    fileExplorerHasMore
+    fileExplorerHasMore,
+    fileExplorerRoot
   ]);
 
   const maybeLoadMoreFileExplorer = useCallback((scrollOffset: number) => {
@@ -3588,6 +3595,44 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                                       paddingRight: 1,
                                       marginBottom: 1
                                     }}
+                                    onMouseUp={async () => {
+                                      if (isCurrent) return;
+                                      if (sessionDataRef.current) {
+                                        await autoSaveSession();
+                                        await completeSession(sessionDataRef.current);
+                                      }
+                                      try {
+                                        const newSession = await loadSession(session.filePath);
+                                        if (newSession) {
+                                          sessionDataRef.current = newSession;
+                                          const newMessages: Message[] = [
+                                            { role: 'system', content: LOGO, timestamp: new Date() },
+                                            { role: 'system', content: generateStartupBanner(newSession.model, process.cwd(), authType, newSession.sessionId), timestamp: new Date(), isBanner: true },
+                                            { role: 'system', content: `[↻] Switched to session ${newSession.sessionId.slice(0, 8)}... (${newSession.messages.length} messages)`, timestamp: new Date() },
+                                            ...newSession.messages.map((m) => ({
+                                              role: m.role,
+                                              content: m.content,
+                                              timestamp: new Date(m.timestamp),
+                                              toolName: m.toolName,
+                                              toolInput: m.toolInput,
+                                              toolResult: m.toolResult,
+                                              isCollapsed: m.role === 'tool'
+                                            }))
+                                          ];
+                                          updateState({
+                                            messages: newMessages,
+                                            sessionId: newSession.sessionId,
+                                            currentModel: newSession.model,
+                                            inputTokens: newSession.inputTokens,
+                                            outputTokens: newSession.outputTokens
+                                          });
+                                        }
+                                      } catch (err) {
+                                        updateState((prev) => ({
+                                          messages: [...prev.messages, { role: 'system', content: `[✗] Failed to load session: ${err instanceof Error ? err.message : 'Unknown error'}`, timestamp: new Date() }]
+                                        }));
+                                      }
+                                    }}
                                   >
                                     <text
                                       content={`${statusDot} ${session.preview}`}
@@ -3620,8 +3665,25 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                     maybeLoadMoreFileExplorer(nextOffset);
                   };
 
+                  const homeDir = os.homedir();
+                  const canGoUp = fileExplorerRoot !== homeDir && fileExplorerRoot !== '/';
+                  
                   return (
                     <>
+                      {canGoUp && (
+                        <box style={{ flexDirection: 'row', paddingLeft: 1, paddingRight: 1, marginBottom: 1 }}>
+                          <text
+                            content="⬅ .."
+                            fg={activeTheme.colors.secondary}
+                            bold
+                            onMouseUp={() => {
+                              const parentDir = path.dirname(fileExplorerRoot);
+                              setFileExplorerRoot(parentDir);
+                              setFileExplorerExpanded((prev) => new Set([...prev, parentDir]));
+                            }}
+                          />
+                        </box>
+                      )}
                       <scrollbox
                         scrollX={false}
                         onScroll={handleFileExplorerScroll}
@@ -3644,7 +3706,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                           },
                           contentOptions: {
                             flexDirection: 'column',
-                            gap: 0,
+                            gap: 1,
                             backgroundColor: 'transparent'
                           }
                         }}
@@ -3688,9 +3750,40 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                               key={node.entry.path}
                               content={`${indent}${icon} ${displayName}`}
                               fg={rowFg}
-                              onMouseUp={() => {
+                              onMouseUp={async (event) => {
+                                if (event.button === 2) {
+                                  setFileExplorerContextMenu({ x: event.x, y: event.y, path: node.entry.path, type: node.entry.type });
+                                  return;
+                                }
                                 if (node.entry.type === 'dir') {
-                                  toggleDirectory(node.entry.path);
+                                  const now = Date.now();
+                                  const lastClick = fileExplorerLastClickRef.current;
+                                  if (lastClick && lastClick.path === node.entry.path && now - lastClick.time < 400) {
+                                    setFileExplorerRoot(node.entry.path);
+                                    setFileExplorerExpanded((prev) => new Set([...prev, node.entry.path]));
+                                    fileExplorerLastClickRef.current = null;
+                                  } else {
+                                    toggleDirectory(node.entry.path);
+                                    fileExplorerLastClickRef.current = { path: node.entry.path, time: now };
+                                  }
+                                } else {
+                                  const alreadyOpen = state.openedFileTabs.find((t) => t.path === node.entry.path);
+                                  if (alreadyOpen) {
+                                    updateState({ activeFileTabPath: node.entry.path, activeAgentTabId: null });
+                                  } else {
+                                    try {
+                                      const content = await fsp.readFile(node.entry.path, 'utf-8');
+                                      updateState((prev) => ({
+                                        openedFileTabs: [...prev.openedFileTabs, { path: node.entry.path, content, modified: false }],
+                                        activeFileTabPath: node.entry.path,
+                                        activeAgentTabId: null
+                                      }));
+                                    } catch (err) {
+                                      updateState((prev) => ({
+                                        messages: [...prev.messages, { role: 'system', content: `[✗] Failed to open file: ${err instanceof Error ? err.message : 'Unknown error'}`, timestamp: new Date() }]
+                                      }));
+                                    }
+                                  }
                                 }
                               }}
                             />
@@ -3733,28 +3826,44 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
           <box style={{ flexShrink: 0, zIndex: 100, flexDirection: 'column', marginBottom: 1 }}>
             {(() => {
               const openedAgents = state.subAgents.filter((agent) => state.openedSubagentTabs.includes(agent.id));
-              const totalTabs = 1 + openedAgents.length;
-              const numDividers = openedAgents.length;
+              const openedFiles = state.openedFileTabs;
+              const totalTabs = 1 + openedAgents.length + openedFiles.length;
+              const numDividers = openedAgents.length + openedFiles.length;
               const availableWidth = mainContentWidth - numDividers;
               const baseWidth = Math.floor(availableWidth / totalTabs);
               const remainder = availableWidth % totalTabs;
               const sessionWidth = baseWidth;
-              const agentWidths = openedAgents.map((_, idx) => baseWidth + (idx < remainder ? 1 : 0));
+              const otherWidths = Array.from({ length: totalTabs - 1 }, (_, idx) => baseWidth + (idx < remainder ? 1 : 0));
+              const isSessionActive = !activeCenterAgent && !state.activeFileTabPath;
               
               return (
                 <box style={{ flexDirection: 'row' }}>
                   <text 
                     content={'▔'.repeat(sessionWidth)} 
-                    fg={!activeCenterAgent ? activeTheme.colors.highlight : panelBackground} 
+                    fg={isSessionActive ? activeTheme.colors.highlight : panelBackground} 
                     bg={panelBackground} 
                   />
                   {openedAgents.map((agent, idx) => {
-                    const isActive = activeCenterAgent?.id === agent.id;
+                    const isActive = activeCenterAgent?.id === agent.id && !state.activeFileTabPath;
                     return (
                       <React.Fragment key={`center-tab-bar-${agent.id}`}>
                         <text content="▔" fg={panelBackground} bg={panelBackground} />
                         <text 
-                          content={'▔'.repeat(agentWidths[idx])} 
+                          content={'▔'.repeat(otherWidths[idx] || baseWidth)} 
+                          fg={isActive ? activeTheme.colors.highlight : panelBackground} 
+                          bg={panelBackground} 
+                        />
+                      </React.Fragment>
+                    );
+                  })}
+                  {openedFiles.map((fileTab, idx) => {
+                    const isActive = state.activeFileTabPath === fileTab.path;
+                    const widthIdx = openedAgents.length + idx;
+                    return (
+                      <React.Fragment key={`center-tab-bar-file-${fileTab.path}`}>
+                        <text content="▔" fg={panelBackground} bg={panelBackground} />
+                        <text 
+                          content={'▔'.repeat(otherWidths[widthIdx] || baseWidth)} 
                           fg={isActive ? activeTheme.colors.highlight : panelBackground} 
                           bg={panelBackground} 
                         />
@@ -3780,20 +3889,20 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                   paddingRight: 1
                 }}
                 onMouseUp={() => {
-                  updateState({ activeAgentTabId: null });
+                  updateState({ activeAgentTabId: null, activeFileTabPath: null });
                 }}
               >
                 <text
                   content="Session"
-                  fg={!activeCenterAgent ? activeTheme.colors.highlight : activeTheme.colors.muted}
-                  bold={!activeCenterAgent}
+                  fg={!activeCenterAgent && !state.activeFileTabPath ? activeTheme.colors.highlight : activeTheme.colors.muted}
+                  bold={!activeCenterAgent && !state.activeFileTabPath}
                 />
               </box>
-              {state.openedSubagentTabs.length > 0 && <text content="▐" fg={activeTheme.colors.border} />}
+              {(state.openedSubagentTabs.length > 0 || state.openedFileTabs.length > 0) && <text content="▐" fg={activeTheme.colors.border} />}
               {state.subAgents
                 .filter((agent) => state.openedSubagentTabs.includes(agent.id))
                 .map((agent, idx, arr) => {
-                  const isActive = activeCenterAgent?.id === agent.id;
+                  const isActive = activeCenterAgent?.id === agent.id && !state.activeFileTabPath;
                   return (
                     <React.Fragment key={`center-tab-${agent.id}`}>
                       <box
@@ -3806,7 +3915,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                           paddingRight: 1
                         }}
                         onMouseUp={() => {
-                          updateState({ activeAgentTabId: agent.id });
+                          updateState({ activeAgentTabId: agent.id, activeFileTabPath: null });
                         }}
                       >
                         <text
@@ -3826,14 +3935,95 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
                           }}
                         />
                       </box>
-                      {idx < arr.length - 1 && <text content="▐" fg={activeTheme.colors.border} />}
+                      {(idx < arr.length - 1 || state.openedFileTabs.length > 0) && <text content="▐" fg={activeTheme.colors.border} />}
                     </React.Fragment>
                   );
                 })}
+              {state.openedFileTabs.map((fileTab, idx, arr) => {
+                const isActive = state.activeFileTabPath === fileTab.path;
+                const fileName = path.basename(fileTab.path);
+                return (
+                  <React.Fragment key={`file-tab-${fileTab.path}`}>
+                    <box
+                      style={{
+                        flexDirection: 'row',
+                        flexGrow: 1,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        paddingLeft: 1,
+                        paddingRight: 1
+                      }}
+                      onMouseUp={() => {
+                        updateState({ activeFileTabPath: fileTab.path, activeAgentTabId: null });
+                      }}
+                    >
+                      <text
+                        content={`${fileTab.modified ? '● ' : ''}${fileName}`}
+                        fg={isActive ? activeTheme.colors.highlight : activeTheme.colors.muted}
+                        bold={isActive}
+                      />
+                      <text
+                        content=" ×"
+                        fg={activeTheme.colors.muted}
+                        onMouseUp={(e) => {
+                          e.stopPropagation();
+                          updateState((prev) => ({
+                            openedFileTabs: prev.openedFileTabs.filter((t) => t.path !== fileTab.path),
+                            activeFileTabPath: prev.activeFileTabPath === fileTab.path ? null : prev.activeFileTabPath
+                          }));
+                        }}
+                      />
+                    </box>
+                    {idx < arr.length - 1 && <text content="▐" fg={activeTheme.colors.border} />}
+                  </React.Fragment>
+                );
+              })}
             </box>
             <text content={'▀'.repeat(mainContentWidth)} fg={panelBackground} />
           </box>
-          {/* Messages area */}
+          {state.activeFileTabPath ? (
+            <box style={{ flexDirection: 'column', flexGrow: 1 }}>
+              <scrollbox
+                scrollX={true}
+                scrollbarOptions={{ visible: true, trackOptions: { width: 1 } }}
+                verticalScrollbarOptions={{ visible: true, trackOptions: { width: 1 } }}
+                style={{
+                  flexGrow: 1,
+                  rootOptions: { flexGrow: 1, padding: 0, gap: 0, flexDirection: 'column', backgroundColor: 'transparent' },
+                  wrapperOptions: { flexGrow: 1, border: false, backgroundColor: 'transparent', flexDirection: 'column' },
+                  contentOptions: { flexDirection: 'column', gap: 0, backgroundColor: 'transparent', paddingLeft: 0, paddingRight: 0 }
+                }}
+              >
+                {(() => {
+                  const activeFile = state.openedFileTabs.find((t) => t.path === state.activeFileTabPath);
+                  if (!activeFile) return <text content="File not found" fg={activeTheme.colors.muted} />;
+                  const lines = activeFile.content.split('\n');
+                  const lineNumWidth = String(lines.length).length + 1;
+                  return lines.map((line, idx) => (
+                    <box key={`line-${idx}`} style={{ flexDirection: 'row', minWidth: Math.max(mainContentWidth, line.length + lineNumWidth + 4) }}>
+                      <text content={String(idx + 1).padStart(lineNumWidth, ' ')} fg={activeTheme.colors.muted} />
+                      <text content=" │ " fg={activeTheme.colors.border} />
+                      <text content={line || ' '} fg={activeTheme.colors.text} />
+                    </box>
+                  ));
+                })()}
+              </scrollbox>
+              <box style={{ flexDirection: 'row', backgroundColor: panelBackground, paddingLeft: 1, paddingRight: 1 }}>
+                {(() => {
+                  const activeFile = state.openedFileTabs.find((t) => t.path === state.activeFileTabPath);
+                  if (!activeFile) return null;
+                  const lines = activeFile.content.split('\n');
+                  return (
+                    <>
+                      <text content={`${activeFile.path}`} fg={activeTheme.colors.muted} />
+                      <text content={` • ${lines.length} lines`} fg={activeTheme.colors.muted} />
+                      <text content=" • Read-only (chat to edit)" fg={activeTheme.colors.muted} />
+                    </>
+                  );
+                })()}
+              </box>
+            </box>
+          ) : (
           <scrollbox
             stickyScroll
             stickyStart="bottom"
@@ -4199,6 +4389,7 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
               </box>
             )}
           </scrollbox>
+          )}
 
           {/* Download progress indicator */}
           {downloadProgress && (
@@ -5566,6 +5757,66 @@ Please explore the codebase thoroughly and create a comprehensive AGENTS.md file
           </box>
         );
       })()}
+
+      {fileExplorerContextMenu && (
+        <box
+          style={{
+            position: 'absolute',
+            left: fileExplorerContextMenu.x,
+            top: fileExplorerContextMenu.y,
+            width: 20,
+            flexDirection: 'column',
+            zIndex: 2000,
+            backgroundColor: panelBackground,
+            border: true,
+            borderStyle: 'rounded',
+            borderColor: activeTheme.colors.border
+          }}
+          onMouseLeave={() => setFileExplorerContextMenu(null)}
+        >
+          <text
+            content=" Add to session"
+            fg={activeTheme.colors.text}
+            onMouseUp={() => {
+              const filePath = fileExplorerContextMenu.path;
+              setFileExplorerContextMenu(null);
+              updateState((prev) => ({
+                messages: [...prev.messages, { role: 'system', content: `[+] Added to context: ${filePath}`, timestamp: new Date() }]
+              }));
+              setInputSegments((prev) => [...prev.filter((s) => s.type !== 'text' || s.text.trim()), { type: 'chip', chip: { id: filePath, label: path.basename(filePath), filePath } }]);
+            }}
+          />
+          <text
+            content=" New session here"
+            fg={activeTheme.colors.text}
+            onMouseUp={async () => {
+              const dirPath = fileExplorerContextMenu.type === 'dir' ? fileExplorerContextMenu.path : path.dirname(fileExplorerContextMenu.path);
+              setFileExplorerContextMenu(null);
+              if (sessionDataRef.current) {
+                await autoSaveSession();
+                await completeSession(sessionDataRef.current);
+              }
+              const newSessionId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+              const newSession = createSessionData(newSessionId, state.currentModel);
+              newSession.workingDirectory = dirPath;
+              sessionDataRef.current = newSession;
+              updateState({
+                messages: [
+                  { role: 'system', content: LOGO, timestamp: new Date() },
+                  { role: 'system', content: generateStartupBanner(newSession.model, dirPath, authType, newSession.sessionId), timestamp: new Date(), isBanner: true }
+                ],
+                sessionId: newSession.sessionId,
+                inputTokens: 0,
+                outputTokens: 0,
+                openedFileTabs: [],
+                activeFileTabPath: null,
+                openedSubagentTabs: [],
+                activeAgentTabId: null
+              });
+            }}
+          />
+        </box>
+      )}
     </box>
   );
 };
