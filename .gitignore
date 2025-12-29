@@ -36,3 +36,5 @@ dev-debug.log
 
 # Test coverage
 coverage/
+/packages/fast-apply/node_modules
+/packages/fast-apply/node_modules
